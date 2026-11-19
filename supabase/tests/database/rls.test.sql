@@ -10,11 +10,14 @@ insert into auth.users (id, email) values
 set local role authenticated;
 select set_config('request.jwt.claims', '{"sub":"11111111-1111-1111-1111-111111111111","role":"authenticated"}', true);
 select isnt(create_family('Dojo'), null, 'parent creates a family');
-insert into children (family_id, name) select id, 'Ana' from families;
-insert into items (family_id, kind, name, points) select id, 'earn', 'Deberes', 10 from families;
 
 reset role;
+update families set status = 'approved'; -- approval itself is covered in family_approval.test.sql
 select set_config('test.code', (select invite_code from families where name = 'Dojo'), true);
+set local role authenticated;
+insert into children (family_id, name) select id, 'Ana' from families;
+insert into items (family_id, kind, name, points) select id, 'earn', 'Deberes', 10 from families;
+reset role;
 
 -- Kid's tablet: anonymous session, joins with the invite code
 set local role authenticated;

@@ -41,9 +41,24 @@ Configuración del proyecto en Supabase (panel):
 - Authentication > Sign In / Providers: activar *anonymous sign-ins* (la tablet de los niños entra así y se une con el código).
 - Authentication > URL Configuration: *Site URL* `https://fjtorres.github.io/house-dojo/` (y añadirla a *Redirect URLs*).
 
+## Administración
+
+Las familias nuevas quedan *pendientes* hasta que un administrador las aprueba en `#/admin`
+(🛡️ en la cabecera). Hasta entonces no se pueden usar ni unirse a ellas, y cada usuario solo puede
+tener una solicitud pendiente. Desde ahí también se rechazan solicitudes y se borran familias completas.
+
+El rol se da a mano en Supabase (SQL Editor), a un usuario que ya haya entrado alguna vez:
+
+```sql
+insert into public.admins (user_id) select id from auth.users where email = 'tu@email';
+```
+
+Las familias de un administrador se aprueban solas, así que la primera familia no necesita a nadie más.
+Para quitar el rol: `delete from public.admins where user_id = '<uuid>';`
+
 ## Cómo funciona
 
-- Los padres entran con un enlace por email; el primero crea la familia y ve su código en ⚙️ Padres.
+- Los padres entran con un enlace por email; el primero pide la familia y, cuando un administrador la aprueba, ve su código en ⚙️ Padres.
 - La tablet de los niños entra sin email («Dispositivo de los niños») y se une con el código: rol `child`.
 - Quien se une con el código entra como `child`; un padre lo sube a `parent` desde ⚙️ Padres.
 - Lo que marca un niño queda *por aprobar*; lo que marca un padre cuenta al momento y se puede anular.

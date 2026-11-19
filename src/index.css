@@ -135,3 +135,9 @@ dialog.confirm::backdrop { background: rgba(43, 35, 64, 0.45); }
 .confirm-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
 .confirm-actions button { flex: 1 1 140px; padding: 14px; }
 button.danger-fill { background: var(--penalty); color: #fff; font-weight: 700; }
+
+.notice { text-align: center; }
+.notice-icon { font-size: 3rem; line-height: 1; margin-bottom: 8px; }
+.admin .rows li { flex-wrap: wrap; }
+.admin .rows .grow { flex: 1 1 220px; }
+.admin .rows small { overflow-wrap: anywhere; }

@@ -1,4 +1,6 @@
+import { execSync } from 'node:child_process'
 import { expect, test, type Page } from '@playwright/test'
+import { createClient } from '@supabase/supabase-js'
 
 const APP = 'http://127.0.0.1:5173/'
 const MAILPIT = 'http://127.0.0.1:54324/api/v1' // local Supabase stack's mail catcher
@@ -15,27 +17,76 @@ async function magicLink(email: string) {
   return link!
 }
 
+async function logIn(page: Page, email: string) {
+  await page.goto(APP)
+  await page.getByLabel('Email').fill(email)
+  await page.getByRole('button', { name: 'Enviarme un enlace' }).click()
+  await expect(page.getByText('Te hemos enviado')).toBeVisible()
+  await page.goto(await magicLink(email))
+}
+
+// Admins are granted by hand in the database; the test does it with the local stack's service key.
+async function grantAdmin(email: string) {
+  const env = Object.fromEntries([...execSync('npx supabase status -o env', { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).matchAll(/^(\w+)="(.*)"$/gm)].map((m) => [m[1], m[2]]))
+  const service = createClient(env.API_URL, env.SERVICE_ROLE_KEY, { auth: { persistSession: false } })
+  const { data } = await service.auth.admin.listUsers({ perPage: 1000 })
+  const user = data.users.find((u) => u.email === email)!
+  const { error } = await service.from('admins').insert({ user_id: user.id })
+  expect(error).toBeNull()
+}
+
 function collectErrors(page: Page, who: string, errors: string[]) {
   page.on('pageerror', (e) => errors.push(`${who}: ${e.message}`))
   page.on('console', (m) => { if (m.type() === 'error') errors.push(`${who}: ${m.text()}`) })
 }
 
-test('parent sets up the family, kid earns points and redeems a reward', async ({ browser }) => {
+test('admin approves a family, parent sets it up, kid earns points and redeems a reward', async ({ browser }) => {
+  const run = Date.now()
+  const family = `Los Test ${run}`
+  const parentEmail = `parent${run}@example.com`
   const parent = await (await browser.newContext({ viewport: { width: 1024, height: 900 } })).newPage()
   const kid = await (await browser.newContext({ viewport: { width: 820, height: 1180 }, hasTouch: true })).newPage()
+  const admin = await (await browser.newContext({ viewport: { width: 1024, height: 900 } })).newPage()
   const errors: string[] = []
   collectErrors(parent, 'parent', errors)
   collectErrors(kid, 'kid', errors)
+  collectErrors(admin, 'admin', errors)
 
-  await test.step('parent logs in with a magic link and creates the family', async () => {
-    const email = `parent${Date.now()}@example.com`
-    await parent.goto(APP)
-    await parent.getByLabel('Email').fill(email)
-    await parent.getByRole('button', { name: 'Enviarme un enlace' }).click()
-    await expect(parent.getByText('Te hemos enviado')).toBeVisible()
-    await parent.goto(await magicLink(email))
-    await parent.getByLabel('Nombre de la familia').fill('Los Test')
+  await test.step('parent logs in with a magic link and requests a family, which waits for approval', async () => {
+    await logIn(parent, parentEmail)
+    await parent.getByLabel('Nombre de la familia').fill(family)
     await parent.getByRole('button', { name: 'Crear' }).click()
+    await expect(parent.getByRole('heading', { name: `«${family}» está pendiente de aprobación` })).toBeVisible()
+  })
+
+  await test.step('admin sees the request with the email and approves it; the parent screen unlocks live', async () => {
+    const adminEmail = `admin${run}@example.com`
+    await logIn(admin, adminEmail)
+    await expect(admin.getByRole('heading', { name: 'Crear una familia' })).toBeVisible()
+    await expect(admin.getByRole('link', { name: /Administración/ }), 'not admin yet').toHaveCount(0)
+    await grantAdmin(adminEmail)
+    await admin.reload()
+    await admin.getByRole('link', { name: /Administración/ }).click()
+    const request = admin.locator('.rows li', { hasText: family })
+    await expect(request).toContainText(parentEmail)
+    await request.getByRole('button', { name: /Aprobar/ }).click()
+    await expect(admin.locator('.card', { hasText: 'Familias aprobadas' }).locator('.rows li', { hasText: family })).toBeVisible()
+    await expect(parent.getByRole('link', { name: '⚙️ Padres' })).toBeVisible({ timeout: 10_000 })
+  })
+
+  await test.step('a rejected request shows a notice and lets the user ask again', async () => {
+    const other = await (await browser.newContext()).newPage()
+    collectErrors(other, 'other', errors)
+    await logIn(other, `other${run}@example.com`)
+    await other.getByLabel('Nombre de la familia').fill(`Rechazada ${run}`)
+    await other.getByRole('button', { name: 'Crear' }).click()
+    await expect(other.getByText('pendiente de aprobación')).toBeVisible()
+    await admin.reload()
+    await admin.locator('.rows li', { hasText: `Rechazada ${run}` }).getByRole('button', { name: /Rechazar/ }).click()
+    await expect(admin.locator('.card', { hasText: 'Rechazadas' }).locator('.rows li', { hasText: `Rechazada ${run}` })).toBeVisible()
+    await expect(other.getByRole('heading', { name: `No se aceptó «Rechazada ${run}»` })).toBeVisible({ timeout: 10_000 })
+    await expect(other.getByRole('button', { name: 'Crear' }), 'can ask again').toBeVisible()
+    await other.context().close()
   })
 
   await test.step('parent adds a child from its own page', async () => {
@@ -169,4 +220,15 @@ test('parent sets up the family, kid earns points and redeems a reward', async (
   })
 
   expect(errors, 'no browser errors').toEqual([])
+
+  await test.step('admin deletes the whole family after confirming', async () => {
+    await admin.reload()
+    await admin.setViewportSize({ width: 390, height: 844 })
+    await expect(admin.locator('.rows li', { hasText: family })).toBeVisible()
+    expect(await admin.evaluate(() => document.documentElement.scrollWidth > innerWidth), 'no horizontal scroll on phone').toBe(false)
+    const row = admin.locator('.rows li', { hasText: family })
+    await row.getByRole('button', { name: 'Borrar' }).click()
+    await admin.getByRole('dialog', { name: `¿Borrar la familia «${family}»?` }).getByRole('button', { name: 'Borrar familia' }).click()
+    await expect(row).toHaveCount(0)
+  })
 })
