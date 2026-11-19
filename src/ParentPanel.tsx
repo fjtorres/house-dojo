@@ -1,101 +1,95 @@
-import { useState, type FormEvent } from 'react'
+import { useState, type FormEvent, type ReactNode } from 'react'
 import { errorText, supabase } from './lib/supabase'
 import { itemValue, signed, type Child, type FamilyData, type Item, type Kind } from './useFamily'
 import { EmojiPicker } from './EmojiPicker'
 import { AVATARS, ICONS } from './emojis'
+import { go } from './router'
 
-type Props = { data: FamilyData; userId: string; reload: () => void }
+// route: the path after #/parents, e.g. [] | ['items'] | ['items', 'new'] | ['items', <id>]
+type Props = { data: FamilyData; userId: string; reload: () => void; route: string[] }
 
 const kindLabel: Record<Kind, string> = { earn: '⭐ Suman', penalty: '⚠️ Restan', reward: '🎁 Recompensas' }
+const tabs = [
+  ['children', '🧒 Niños'],
+  ['items', '📋 Tareas'],
+  ['members', '👨‍👩‍👧 Miembros'],
+  ['code', '🔑 Código'],
+] as const
+const CHILDREN = '#/parents/children'
+const ITEMS = '#/parents/items'
 
-export function ParentPanel({ data, userId, reload }: Props) {
+export function ParentPanel({ data, userId, reload, route }: Props) {
   const [error, setError] = useState('')
-  const [editing, setEditing] = useState<string>()
+  const [tab = 'children', id] = route
   const familyId = data.family.id
 
-  async function run(call: PromiseLike<{ error: { message: string } | null }>) {
+  async function run(call: PromiseLike<{ error: { message: string } | null }>, then?: string) {
     const { error } = await call
     setError(error ? errorText(error) : '')
     reload()
-    return !error
+    if (!error && then) go(then)
   }
 
-  const addChild = (child: ChildFields) => run(supabase.from('children').insert({ family_id: familyId, ...child }))
-  const updateChild = async (id: string, child: ChildFields) => {
-    const ok = await run(supabase.from('children').update(child).eq('id', id))
-    if (ok) setEditing(undefined)
-    return ok
-  }
-
-  const addItem = (item: ItemFields) => run(supabase.from('items').insert({ family_id: familyId, ...item }))
-  // transactions keep their own points snapshot, so editing an item never rewrites history
-  const updateItem = async (id: string, item: ItemFields) => {
-    const ok = await run(supabase.from('items').update(item).eq('id', id))
-    if (ok) setEditing(undefined)
-    return ok
-  }
-
-  return (
-    <div className="panel">
+  let page: ReactNode
+  if (tab === 'children' && id) {
+    const child = data.children.find((c) => c.id === id)
+    page = id === 'new'
+      ? <ChildForm onSave={(v) => run(supabase.from('children').insert({ family_id: familyId, ...v }), CHILDREN)} />
+      : child
+        ? <ChildForm child={child} onSave={(v) => run(supabase.from('children').update(v).eq('id', child.id), CHILDREN)} />
+        : <NotFound back={CHILDREN} />
+  } else if (tab === 'children') {
+    page = (
       <section className="card">
-        <h2>🔑 Código de la familia</h2>
-        <p className="code">{data.family.invite_code}</p>
-        <p>Úsalo en la tablet de los niños («Dispositivo de los niños») o para que otro adulto se una. Quien se une entra como niño; súbelo a padre/madre abajo.</p>
-      </section>
-
-      <section className="card">
-        <h2>🧒 Niños</h2>
+        <Head title="🧒 Niños" add={`${CHILDREN}/new`} label="Añadir niño" />
         <ul className="rows">
-          {data.children.map((c) =>
-            editing === c.id ? (
-              <li key={c.id} className="editing">
-                <ChildForm child={c} onSave={(v) => updateChild(c.id, v)} onCancel={() => setEditing(undefined)} />
-              </li>
-            ) : (
-              <li key={c.id}>
-                <span className="avatar">{c.avatar || '🙂'}</span>
-                <span className="grow">{c.name}</span>
-                <button className="link" onClick={() => setEditing(c.id)}>Editar</button>
-                <button className="link danger" onClick={() =>
-                  confirm(`¿Borrar a ${c.name} y todo su historial?`) && run(supabase.from('children').delete().eq('id', c.id))
-                }>Borrar</button>
-              </li>
-            ),
-          )}
+          {data.children.map((c) => (
+            <li key={c.id}>
+              <span className="avatar">{c.avatar || '🙂'}</span>
+              <span className="grow">{c.name}</span>
+              <a className="link" href={`${CHILDREN}/${c.id}`}>Editar</a>
+              <button className="link danger" onClick={() =>
+                confirm(`¿Borrar a ${c.name} y todo su historial?`) && run(supabase.from('children').delete().eq('id', c.id))
+              }>Borrar</button>
+            </li>
+          ))}
         </ul>
-        <h3>Añadir niño</h3>
-        <ChildForm onSave={addChild} />
+        {data.children.length === 0 && <p>Todavía no hay niños. Pulsa + para añadir uno.</p>}
       </section>
-
+    )
+  } else if (tab === 'items' && id) {
+    const item = data.items.find((i) => i.id === id)
+    page = id === 'new'
+      ? <ItemForm onSave={(v) => run(supabase.from('items').insert({ family_id: familyId, ...v }), ITEMS)} />
+      : item
+        // transactions keep their own points snapshot, so editing an item never rewrites history
+        ? <ItemForm item={item} onSave={(v) => run(supabase.from('items').update(v).eq('id', item.id), ITEMS)} />
+        : <NotFound back={ITEMS} />
+  } else if (tab === 'items') {
+    page = (
       <section className="card">
-        <h2>📋 Tareas, faltas y recompensas</h2>
+        <Head title="📋 Tareas, faltas y recompensas" add={`${ITEMS}/new`} label="Añadir tarea" />
         {(['earn', 'penalty', 'reward'] as Kind[]).map((kind) => (
           <div key={kind}>
             <h3>{kindLabel[kind]}</h3>
             <ul className="rows">
-              {data.items.filter((i) => i.kind === kind).map((i) =>
-                editing === i.id ? (
-                  <li key={i.id} className="editing">
-                    <ItemForm item={i} onSave={(v) => updateItem(i.id, v)} onCancel={() => setEditing(undefined)} />
-                  </li>
-                ) : (
-                  <li key={i.id}>
-                    <span className="avatar">{i.icon}</span>
-                    <span className="grow">{i.name}</span>
-                    <b>{signed(itemValue(i))}</b>
-                    <button className="link" onClick={() => setEditing(i.id)}>Editar</button>
-                    {/* archived, not deleted: the history keeps pointing at it */}
-                    <button className="link danger" onClick={() => run(supabase.from('items').update({ archived: true }).eq('id', i.id))}>Quitar</button>
-                  </li>
-                ),
-              )}
+              {data.items.filter((i) => i.kind === kind).map((i) => (
+                <li key={i.id}>
+                  <span className="avatar">{i.icon}</span>
+                  <span className="grow">{i.name}</span>
+                  <b>{signed(itemValue(i))}</b>
+                  <a className="link" href={`${ITEMS}/${i.id}`}>Editar</a>
+                  {/* archived, not deleted: the history keeps pointing at it */}
+                  <button className="link danger" onClick={() => run(supabase.from('items').update({ archived: true }).eq('id', i.id))}>Quitar</button>
+                </li>
+              ))}
             </ul>
           </div>
         ))}
-        <h3>Añadir</h3>
-        <ItemForm onSave={addItem} />
       </section>
-
+    )
+  } else if (tab === 'members') {
+    page = (
       <section className="card">
         <h2>👨‍👩‍👧 Miembros</h2>
         <ul className="rows">
@@ -119,64 +113,90 @@ export function ParentPanel({ data, userId, reload }: Props) {
           ))}
         </ul>
       </section>
+    )
+  } else {
+    page = (
+      <section className="card">
+        <h2>🔑 Código de la familia</h2>
+        <p className="code">{data.family.invite_code}</p>
+        <p>Úsalo en la tablet de los niños («Dispositivo de los niños») o para que otro adulto se una. Quien se une entra como niño; súbelo a padre/madre en Miembros.</p>
+      </section>
+    )
+  }
 
+  return (
+    <div className="panel">
+      <nav className="tabs" aria-label="Menú de padres">
+        {tabs.map(([key, label]) => (
+          <a key={key} href={`#/parents/${key}`} aria-current={tab === key ? 'page' : undefined}>{label}</a>
+        ))}
+      </nav>
+      {page}
       {error && <p className="error">{error}</p>}
     </div>
   )
 }
 
-type ChildFields = { name: string; avatar: string; color: string }
-type ChildFormProps = { child?: Child; onSave: (child: ChildFields) => Promise<boolean>; onCancel?: () => void }
+function Head({ title, add, label }: { title: string; add: string; label: string }) {
+  return (
+    <div className="section-head">
+      <h2>{title}</h2>
+      <a className="button primary add" href={add} aria-label={label} title={label}>+</a>
+    </div>
+  )
+}
 
-function ChildForm({ child, onSave, onCancel }: ChildFormProps) {
-  async function submit(e: FormEvent<HTMLFormElement>) {
+const NotFound = ({ back }: { back: string }) => (
+  <section className="card"><p>No existe (puede que lo hayan borrado).</p><a className="link" href={back}>← Volver a la lista</a></section>
+)
+
+type ChildFields = { name: string; avatar: string; color: string }
+
+function ChildForm({ child, onSave }: { child?: Child; onSave: (child: ChildFields) => void }) {
+  function submit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault()
-    const form = e.currentTarget
-    const f = new FormData(form)
-    const ok = await onSave({ name: String(f.get('name')), avatar: String(f.get('avatar')), color: String(f.get('color')) })
-    if (ok && !child) form.reset()
+    const f = new FormData(e.currentTarget)
+    onSave({ name: String(f.get('name')), avatar: String(f.get('avatar')), color: String(f.get('color')) })
   }
 
   return (
-    <form onSubmit={submit} className="inline">
-      <EmojiPicker name="avatar" options={AVATARS} defaultValue={child?.avatar} label="Avatar" />
-      <input name="name" placeholder="Nombre" required maxLength={40} defaultValue={child?.name} aria-label="Nombre" />
-      <input name="color" type="color" defaultValue={child?.color || '#7c5cff'} aria-label="Color" />
-      <button className="primary">{child ? 'Guardar' : 'Añadir'}</button>
-      {onCancel && <button type="button" className="link" onClick={onCancel}>Cancelar</button>}
+    <form onSubmit={submit} className="card">
+      <h2>{child ? `Editar a ${child.name}` : 'Añadir niño'}</h2>
+      <div className="inline">
+        <EmojiPicker name="avatar" options={AVATARS} defaultValue={child?.avatar} label="Avatar" />
+        <input name="name" placeholder="Nombre" required maxLength={40} defaultValue={child?.name} aria-label="Nombre" />
+        <input name="color" type="color" defaultValue={child?.color || '#7c5cff'} aria-label="Color" />
+        <button className="primary">{child ? 'Guardar' : 'Añadir'}</button>
+        <a className="link" href={CHILDREN}>Cancelar</a>
+      </div>
     </form>
   )
 }
 
 type ItemFields = { kind: string; name: string; icon: string; points: number }
-type ItemFormProps = { item?: Item; onSave: (item: ItemFields) => Promise<boolean>; onCancel?: () => void }
 
-function ItemForm({ item, onSave, onCancel }: ItemFormProps) {
-  async function submit(e: FormEvent<HTMLFormElement>) {
+function ItemForm({ item, onSave }: { item?: Item; onSave: (item: ItemFields) => void }) {
+  function submit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault()
-    const form = e.currentTarget
-    const f = new FormData(form)
-    const ok = await onSave({
-      kind: String(f.get('kind')),
-      name: String(f.get('name')),
-      icon: String(f.get('icon')),
-      points: Number(f.get('points')),
-    })
-    if (ok && !item) form.reset()
+    const f = new FormData(e.currentTarget)
+    onSave({ kind: String(f.get('kind')), name: String(f.get('name')), icon: String(f.get('icon')), points: Number(f.get('points')) })
   }
 
   return (
-    <form onSubmit={submit} className="inline">
-      <select name="kind" aria-label="Tipo" defaultValue={item?.kind}>
-        <option value="earn">Suma</option>
-        <option value="penalty">Resta</option>
-        <option value="reward">Recompensa</option>
-      </select>
-      <EmojiPicker name="icon" options={ICONS} defaultValue={item?.icon} label="Icono" />
-      <input name="name" placeholder="Hacer los deberes" required maxLength={60} defaultValue={item?.name} aria-label="Nombre" />
-      <input name="points" type="number" min={1} defaultValue={item?.points ?? 10} required className="num" aria-label="Puntos" />
-      <button className="primary">{item ? 'Guardar' : 'Añadir'}</button>
-      {onCancel && <button type="button" className="link" onClick={onCancel}>Cancelar</button>}
+    <form onSubmit={submit} className="card">
+      <h2>{item ? `Editar «${item.name}»` : 'Añadir tarea, falta o recompensa'}</h2>
+      <div className="inline">
+        <select name="kind" aria-label="Tipo" defaultValue={item?.kind}>
+          <option value="earn">Suma</option>
+          <option value="penalty">Resta</option>
+          <option value="reward">Recompensa</option>
+        </select>
+        <EmojiPicker name="icon" options={ICONS} defaultValue={item?.icon} label="Icono" />
+        <input name="name" placeholder="Hacer los deberes" required maxLength={60} defaultValue={item?.name} aria-label="Nombre" />
+        <input name="points" type="number" min={1} defaultValue={item?.points ?? 10} required className="num" aria-label="Puntos" />
+        <button className="primary">{item ? 'Guardar' : 'Añadir'}</button>
+        <a className="link" href={ITEMS}>Cancelar</a>
+      </div>
     </form>
   )
 }
