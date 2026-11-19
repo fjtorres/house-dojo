@@ -9,7 +9,8 @@
     "lint": "oxlint",
     "preview": "vite preview",
     "test": "supabase test db",
-    "db:start": "supabase db start"
+    "db:start": "supabase db start",
+    "types": "supabase gen types typescript --local > src/lib/database.types.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.119.1",
