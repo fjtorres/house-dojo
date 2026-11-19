@@ -1,6 +1,8 @@
 import { useState, type FormEvent } from 'react'
 import { errorText, supabase } from './lib/supabase'
-import { itemValue, signed, type FamilyData, type Kind } from './useFamily'
+import { itemValue, signed, type Child, type FamilyData, type Kind } from './useFamily'
+import { EmojiPicker } from './EmojiPicker'
+import { AVATARS, ICONS } from './emojis'
 
 type Props = { data: FamilyData; userId: string; reload: () => void }
 
@@ -8,6 +10,7 @@ const kindLabel: Record<Kind, string> = { earn: '⭐ Suman', penalty: '⚠️ Re
 
 export function ParentPanel({ data, userId, reload }: Props) {
   const [error, setError] = useState('')
+  const [editing, setEditing] = useState<string>()
   const familyId = data.family.id
 
   async function run(call: PromiseLike<{ error: { message: string } | null }>) {
@@ -17,17 +20,11 @@ export function ParentPanel({ data, userId, reload }: Props) {
     return !error
   }
 
-  async function addChild(e: FormEvent<HTMLFormElement>) {
-    e.preventDefault()
-    const form = e.currentTarget
-    const f = new FormData(form)
-    const ok = await run(supabase.from('children').insert({
-      family_id: familyId,
-      name: String(f.get('name')),
-      avatar: String(f.get('avatar')) || null,
-      color: String(f.get('color')),
-    }))
-    if (ok) form.reset()
+  const addChild = (child: ChildFields) => run(supabase.from('children').insert({ family_id: familyId, ...child }))
+  const updateChild = async (id: string, child: ChildFields) => {
+    const ok = await run(supabase.from('children').update(child).eq('id', id))
+    if (ok) setEditing(undefined)
+    return ok
   }
 
   async function addItem(e: FormEvent<HTMLFormElement>) {
@@ -55,22 +52,25 @@ export function ParentPanel({ data, userId, reload }: Props) {
       <section className="card">
         <h2>🧒 Niños</h2>
         <ul className="rows">
-          {data.children.map((c) => (
-            <li key={c.id}>
-              <span className="avatar">{c.avatar || '🙂'}</span>
-              <span className="grow">{c.name}</span>
-              <button className="link danger" onClick={() =>
-                confirm(`¿Borrar a ${c.name} y todo su historial?`) && run(supabase.from('children').delete().eq('id', c.id))
-              }>Borrar</button>
-            </li>
-          ))}
+          {data.children.map((c) =>
+            editing === c.id ? (
+              <li key={c.id} className="editing">
+                <ChildForm child={c} onSave={(v) => updateChild(c.id, v)} onCancel={() => setEditing(undefined)} />
+              </li>
+            ) : (
+              <li key={c.id}>
+                <span className="avatar">{c.avatar || '🙂'}</span>
+                <span className="grow">{c.name}</span>
+                <button className="link" onClick={() => setEditing(c.id)}>Editar</button>
+                <button className="link danger" onClick={() =>
+                  confirm(`¿Borrar a ${c.name} y todo su historial?`) && run(supabase.from('children').delete().eq('id', c.id))
+                }>Borrar</button>
+              </li>
+            ),
+          )}
         </ul>
-        <form onSubmit={addChild} className="inline">
-          <input name="avatar" placeholder="🦊" maxLength={4} className="emoji" aria-label="Emoji" />
-          <input name="name" placeholder="Nombre" required maxLength={40} />
-          <input name="color" type="color" defaultValue="#7c5cff" aria-label="Color" />
-          <button className="primary">Añadir</button>
-        </form>
+        <h3>Añadir niño</h3>
+        <ChildForm onSave={addChild} />
       </section>
 
       <section className="card">
@@ -97,7 +97,7 @@ export function ParentPanel({ data, userId, reload }: Props) {
             <option value="penalty">Resta</option>
             <option value="reward">Recompensa</option>
           </select>
-          <input name="icon" placeholder="📚" maxLength={4} className="emoji" aria-label="Emoji" />
+          <EmojiPicker name="icon" options={ICONS} label="Icono" />
           <input name="name" placeholder="Hacer los deberes" required maxLength={60} />
           <input name="points" type="number" min={1} defaultValue={10} required className="num" aria-label="Puntos" />
           <button className="primary">Añadir</button>
@@ -130,5 +130,28 @@ export function ParentPanel({ data, userId, reload }: Props) {
 
       {error && <p className="error">{error}</p>}
     </div>
+  )
+}
+
+type ChildFields = { name: string; avatar: string; color: string }
+type ChildFormProps = { child?: Child; onSave: (child: ChildFields) => Promise<boolean>; onCancel?: () => void }
+
+function ChildForm({ child, onSave, onCancel }: ChildFormProps) {
+  async function submit(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault()
+    const form = e.currentTarget
+    const f = new FormData(form)
+    const ok = await onSave({ name: String(f.get('name')), avatar: String(f.get('avatar')), color: String(f.get('color')) })
+    if (ok && !child) form.reset()
+  }
+
+  return (
+    <form onSubmit={submit} className="inline">
+      <EmojiPicker name="avatar" options={AVATARS} defaultValue={child?.avatar} label="Avatar" />
+      <input name="name" placeholder="Nombre" required maxLength={40} defaultValue={child?.name} aria-label="Nombre" />
+      <input name="color" type="color" defaultValue={child?.color || '#7c5cff'} aria-label="Color" />
+      <button className="primary">{child ? 'Guardar' : 'Añadir'}</button>
+      {onCancel && <button type="button" className="link" onClick={onCancel}>Cancelar</button>}
+    </form>
   )
 }
