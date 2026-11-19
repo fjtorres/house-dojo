@@ -23,7 +23,21 @@ export type Database = {
           }
         },"public": {
           Tables: {
-            "children": {
+            "admins": {
+                  Row: {
+                    "created_at": string,"user_id": string
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "created_at"?: string,"user_id": string
+                  }
+                  Update: {
+                    "created_at"?: string,"user_id"?: string
+                  }
+                  Relationships: [
+                    
+                  ]
+                },"children": {
                   Row: {
                     "avatar": string | null,"color": string | null,"created_at": string,"family_id": string,"id": string,"name": string
                   }
@@ -45,14 +59,14 @@ isOneToOne: false
                   ]
                 },"families": {
                   Row: {
-                    "created_at": string,"id": string,"invite_code": string,"name": string
+                    "created_at": string,"id": string,"invite_code": string,"name": string,"requested_by": string | null,"status": string
                   }
                   ComputedFields: never
                   Insert: {
-                    "created_at"?: string,"id"?: string,"invite_code"?: string,"name": string
+                    "created_at"?: string,"id"?: string,"invite_code"?: string,"name": string,"requested_by"?: string | null,"status"?: string
                   }
                   Update: {
-                    "created_at"?: string,"id"?: string,"invite_code"?: string,"name"?: string
+                    "created_at"?: string,"id"?: string,"invite_code"?: string,"name"?: string,"requested_by"?: string | null,"status"?: string
                   }
                   Relationships: [
                     
@@ -155,8 +169,22 @@ isOneToOne: false
                 }
           }
           Functions: {
-            "create_family":
+            "admin_delete_family":
+{ Args: { "fid": string }; Returns: undefined
+                           },
+"admin_families":
+{ Args: Record<PropertyKey, never>; Returns: {
+              "created_at": string,"email": string,"id": string,"kids": number,"movements": number,"name": string,"parents": number,"status": string
+            }[]
+                           },
+"admin_set_family_status":
+{ Args: { "fid": string,"new_status": string }; Returns: undefined
+                           },
+"create_family":
 { Args: { "family_name": string }; Returns: string
+                           },
+"is_admin":
+{ Args: Record<PropertyKey, never>; Returns: boolean
                            },
 "is_member":
 { Args: { "fid": string }; Returns: boolean

@@ -10,6 +10,9 @@ export const supabase = createClient<Database>(
 const messages: Record<string, string> = {
   'invalid invite code': 'Ese código no existe. Revísalo con papá o mamá.',
   'sign in with email to create a family': 'Para crear una familia entra con tu email.',
+  'family request already pending': 'Ya tienes una familia esperando aprobación.',
+  'admins only': 'Solo para administradores.',
+  'family not found': 'Esa familia ya no existe.',
 }
 
 export const errorText = (e: { message: string }) => messages[e.message] ?? e.message

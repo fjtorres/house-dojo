@@ -1,9 +1,10 @@
 import { useState, type FormEvent } from 'react'
 import { errorText, supabase } from './lib/supabase'
 
-type Props = { anonymous: boolean; onJoined: (familyId: string) => void }
+// rejected: name of the user's family request an admin turned down, if any
+type Props = { anonymous: boolean; isAdmin: boolean; rejected?: string; onJoined: () => void }
 
-export function Onboarding({ anonymous, onJoined }: Props) {
+export function Onboarding({ anonymous, isAdmin, rejected, onJoined }: Props) {
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
 
@@ -13,7 +14,7 @@ export function Onboarding({ anonymous, onJoined }: Props) {
     const { data, error } = await call(new FormData(e.currentTarget))
     setBusy(false)
     if (error) setError(errorText(error))
-    else if (data) onJoined(data)
+    else if (data) onJoined()
   }
 
   const join = (e: FormEvent<HTMLFormElement>) =>
@@ -24,9 +25,17 @@ export function Onboarding({ anonymous, onJoined }: Props) {
   return (
     <main className="page narrow">
       <h1 className="logo">🥋 House Dojo</h1>
+      {rejected && (
+        <section className="card notice">
+          <div className="notice-icon" aria-hidden>🚫</div>
+          <h2>No se aceptó «{rejected}»</h2>
+          <p>Puedes pedir otra familia o unirte a una con su código.</p>
+        </section>
+      )}
       {!anonymous && (
         <section className="card">
           <h2>Crear una familia</h2>
+          <p>Un administrador la revisará antes de que podáis usarla.</p>
           <form onSubmit={create} className="stack">
             <label>
               Nombre de la familia
@@ -52,6 +61,7 @@ export function Onboarding({ anonymous, onJoined }: Props) {
         </form>
       </section>
       {error && <p className="error">{error}</p>}
+      {isAdmin && <a className="button" href="#/admin">🛡️ Administración</a>}
       <button className="link" onClick={() => supabase.auth.signOut()}>Salir</button>
     </main>
   )

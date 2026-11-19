@@ -5,9 +5,9 @@ import { ChildView } from './ChildView'
 import { ParentPanel } from './ParentPanel'
 import { go, useRoute } from './router'
 
-type Props = { familyId: string; userId: string }
+type Props = { familyId: string; userId: string; isAdmin: boolean }
 
-export function FamilyHome({ familyId, userId }: Props) {
+export function FamilyHome({ familyId, userId, isAdmin }: Props) {
   const { data, error, reload } = useFamily(familyId)
   const route = useRoute()
   const [section, ...rest] = route
@@ -35,6 +35,7 @@ export function FamilyHome({ familyId, userId }: Props) {
           <a className="button" href="#/">← Volver</a>
         )}
         <nav>
+          {isAdmin && <a className="button" href="#/admin" aria-label="Administración" title="Administración">🛡️</a>}
           {isParent && section !== 'parents' && <a className="button" href="#/parents">⚙️ Padres</a>}
           <button className="link" onClick={signOut}>Salir</button>
         </nav>
