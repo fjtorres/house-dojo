@@ -1,5 +1,5 @@
 begin;
-select plan(9);
+select plan(11);
 
 insert into auth.users (id, email) values
   ('11111111-1111-1111-1111-111111111111', 'parent@test'),
@@ -16,11 +16,14 @@ insert into items (family_id, kind, name, points) select id, 'earn', 'Deberes', 
 reset role;
 select set_config('test.code', (select invite_code from families where name = 'Dojo'), true);
 
--- Kid joins with the invite code
+-- Kid's tablet: anonymous session, joins with the invite code
 set local role authenticated;
-select set_config('request.jwt.claims', '{"sub":"22222222-2222-2222-2222-222222222222","role":"authenticated"}', true);
-select join_family(current_setting('test.code'));
+select set_config('request.jwt.claims', '{"sub":"22222222-2222-2222-2222-222222222222","role":"authenticated","is_anonymous":true}', true);
+select throws_ok($$ select create_family('Anon') $$, 'P0001', 'sign in with email to create a family',
+  'anonymous session cannot create a family');
+select join_family(' ' || upper(current_setting('test.code')) || ' ', 'Tablet');
 select is((select role from family_members where user_id = auth.uid()), 'child', 'invite code joins as child');
+select is((select name from family_members where user_id = auth.uid()), 'Tablet', 'member keeps the device name');
 
 insert into transactions (family_id, child_id, item_id, points)
   select c.family_id, c.id, i.id, 1000 from children c, items i;
