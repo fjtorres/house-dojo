@@ -10,21 +10,26 @@ Todo se ejecuta dentro del devcontainer (`.devcontainer/`): ábrelo con VS Code 
 o con `devcontainer up --workspace-folder .`. Trae Node 22, GitHub CLI y Docker (para Supabase local).
 
 ```bash
-npx supabase start -x storage-api,imgproxy,studio,edge-runtime,logflare,vector,supavisor
+npm run supabase:start       # Supabase local sin los servicios que no usamos
 cp .env.example .env.local   # con la URL y la publishable key que imprime el comando anterior
 npm run dev                  # http://localhost:5173 (los emails de login llegan a http://localhost:54324)
 npm test                     # tests pgTAP de supabase/tests/
+npm run test:e2e             # Playwright en e2e/: padre y tablet en dos navegadores (arranca Vite solo)
 npm run build
 npm run types                # regenera src/lib/database.types.ts tras cambiar el esquema
 ```
 
-Para solo los tests de base de datos basta `npm run db:start` en lugar de `supabase start`.
+Para solo los tests de base de datos basta `npm run db:start` en lugar de `npm run supabase:start`.
+
+Cada cambio lleva su test: los de seguridad y datos en pgTAP (`supabase/tests/`), los de pantallas
+en la spec de Playwright (`e2e/`). Si falla en CI, la traza queda como artefact `playwright-traces`
+del job: `npx playwright show-trace <zip>`.
 
 Cambios de esquema: `npx supabase migration new <nombre>`, nunca editar una migración ya aplicada.
 
 ## Despliegue
 
-`.github/workflows/ci.yml`: en cada PR, lint + build + tests. En `main`, además aplica las migraciones
+`.github/workflows/ci.yml`: en cada PR, lint + build + tests pgTAP (job `test`) y Playwright (job `e2e`). En `main`, además aplica las migraciones
 al proyecto de Supabase y publica la web en GitHub Pages.
 
 Configuración del repo en GitHub:
