@@ -4,6 +4,7 @@ import { itemValue, signed, type Child, type FamilyData, type Item, type Kind } 
 import { EmojiPicker } from './EmojiPicker'
 import { AVATARS, ICONS } from './emojis'
 import { go } from './router'
+import { useConfirm } from './useConfirm'
 
 // route: the path after #/parents, e.g. [] | ['items'] | ['items', 'new'] | ['items', <id>]
 type Props = { data: FamilyData; userId: string; reload: () => void; route: string[] }
@@ -20,6 +21,7 @@ const ITEMS = '#/parents/items'
 
 export function ParentPanel({ data, userId, reload, route }: Props) {
   const [error, setError] = useState('')
+  const [confirm, confirmDialog] = useConfirm()
   const [tab = 'children', id] = route
   const familyId = data.family.id
 
@@ -48,8 +50,9 @@ export function ParentPanel({ data, userId, reload, route }: Props) {
               <span className="avatar">{c.avatar || '🙂'}</span>
               <span className="grow">{c.name}</span>
               <a className="link" href={`${CHILDREN}/${c.id}`}>Editar</a>
-              <button className="link danger" onClick={() =>
-                confirm(`¿Borrar a ${c.name} y todo su historial?`) && run(supabase.from('children').delete().eq('id', c.id))
+              <button className="link danger" onClick={async () =>
+                await confirm({ icon: c.avatar || '🙂', title: `¿Borrar a ${c.name}?`, message: 'Se borrará también todo su historial de puntos. No se puede deshacer.', confirmLabel: 'Borrar', danger: true }) &&
+                run(supabase.from('children').delete().eq('id', c.id))
               }>Borrar</button>
             </li>
           ))}
@@ -103,8 +106,8 @@ export function ParentPanel({ data, userId, reload, route }: Props) {
                     run(supabase.from('family_members').update({ role: m.role === 'parent' ? 'child' : 'parent' })
                       .eq('family_id', familyId).eq('user_id', m.user_id))
                   }>{m.role === 'parent' ? 'Hacer niño' : 'Hacer padre/madre'}</button>
-                  <button className="link danger" onClick={() =>
-                    confirm(`¿Quitar a ${m.name} de la familia?`) &&
+                  <button className="link danger" onClick={async () =>
+                    await confirm({ icon: '👋', title: `¿Quitar a ${m.name} de la familia?`, message: 'Ese dispositivo o persona dejará de ver la familia. Podrá volver a unirse con el código.', confirmLabel: 'Quitar', danger: true }) &&
                     run(supabase.from('family_members').delete().eq('family_id', familyId).eq('user_id', m.user_id))
                   }>Quitar</button>
                 </>
@@ -133,6 +136,7 @@ export function ParentPanel({ data, userId, reload, route }: Props) {
       </nav>
       {page}
       {error && <p className="error">{error}</p>}
+      {confirmDialog}
     </div>
   )
 }

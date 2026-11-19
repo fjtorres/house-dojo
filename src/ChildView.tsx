@@ -1,5 +1,6 @@
 import { useEffect, useState, type CSSProperties } from 'react'
 import { supabase } from './lib/supabase'
+import { useConfirm } from './useConfirm'
 import { itemValue, signed, type Child, type FamilyData, type Item, type Kind, type Tx } from './useFamily'
 
 type Props = { child: Child; data: FamilyData; isParent: boolean; reload: () => void }
@@ -14,6 +15,7 @@ const defaultIcon: Record<Kind, string> = { earn: '⭐', reward: '🎁', penalty
 export function ChildView({ child, data, isParent, reload }: Props) {
   const points = data.balances[child.id] ?? 0
   const [toast, setToast] = useState<{ text: string; kind: Kind }>()
+  const [confirm, confirmDialog] = useConfirm()
   const history = data.txs.filter((t) => t.child_id === child.id)
   // pending deductions already count as spent, so a reward can't be requested twice with the same points
   const available = points + history.filter((t) => t.status === 'pending' && t.points < 0).reduce((sum, t) => sum + t.points, 0)
@@ -42,7 +44,16 @@ export function ChildView({ child, data, isParent, reload }: Props) {
   }
 
   async function setStatus(tx: Tx, status: 'approved' | 'rejected') {
-    if (status === 'rejected' && tx.status === 'approved' && !confirm('¿Anular este movimiento?')) return
+    if (status === 'rejected' && tx.status === 'approved') {
+      const ok = await confirm({
+        icon: '↩️',
+        title: '¿Anular este movimiento?',
+        message: `«${tx.items?.name}» (${signed(tx.points)}) dejará de contar en los puntos de ${child.name}.`,
+        confirmLabel: 'Anular',
+        danger: true,
+      })
+      if (!ok) return
+    }
     await supabase.from('transactions').update({ status }).eq('id', tx.id)
     reload()
   }
@@ -111,6 +122,7 @@ export function ChildView({ child, data, isParent, reload }: Props) {
       </section>
 
       {toast && <div className={`toast ${toast.kind}`} role="status">{toast.text}</div>}
+      {confirmDialog}
     </div>
   )
 }

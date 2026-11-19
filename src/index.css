@@ -125,3 +125,13 @@ a:focus-visible { outline: 3px solid var(--primary); outline-offset: 2px; }
 .tabs { display: flex; gap: 8px; overflow-x: auto; margin-bottom: 16px; padding: 2px 2px 6px; }
 .tabs a { flex: none; padding: 10px 16px; border-radius: 999px; background: var(--card); color: var(--text); text-decoration: none; font-weight: 700; box-shadow: var(--shadow); }
 .tabs a[aria-current='page'] { background: var(--primary); color: #fff; }
+
+dialog.confirm { border: 0; padding: 0; border-radius: var(--radius); width: min(420px, calc(100% - 32px)); color: var(--text); background: var(--card); box-shadow: 0 12px 40px rgba(0, 0, 0, 0.25); animation: pop 0.25s ease-out; }
+dialog.confirm::backdrop { background: rgba(43, 35, 64, 0.45); }
+.confirm > div { display: grid; gap: 12px; padding: 24px; text-align: center; }
+.confirm h2 { margin: 0; }
+.confirm p { margin: 0; color: var(--muted); }
+.confirm-icon { font-size: 3rem; line-height: 1; }
+.confirm-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+.confirm-actions button { flex: 1 1 140px; padding: 14px; }
+button.danger-fill { background: var(--penalty); color: #fff; font-weight: 700; }
