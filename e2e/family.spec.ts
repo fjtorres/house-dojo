@@ -135,10 +135,37 @@ test('parent sets up the family, kid earns points and redeems a reward', async (
     await expect(parent.locator('.hero-points')).toHaveText('0 ⭐')
   })
 
+  await test.step('parent undoes an approved movement through the in-app dialog', async () => {
+    const undo = parent.locator('.history li', { hasText: 'Ver la TV' }).getByRole('button', { name: 'Anular' })
+    const dialog = parent.getByRole('dialog', { name: '¿Anular este movimiento?' })
+    await undo.click()
+    await expect(dialog).toContainText('Ver la TV')
+    await parent.keyboard.press('Escape')
+    await expect(dialog, 'Escape cancels').toBeHidden()
+    await expect(parent.locator('.hero-points')).toHaveText('0 ⭐')
+    await undo.click()
+    await dialog.getByRole('button', { name: 'Anular' }).click()
+    await expect(parent.locator('.hero-points')).toHaveText('15 ⭐')
+    await expect(parent.locator('.history li', { hasText: 'Ver la TV' })).toContainText('anulado')
+  })
+
   await test.step('no horizontal scroll at phone width', async () => {
     await parent.setViewportSize({ width: 390, height: 844 })
     await parent.getByRole('link', { name: '← Volver' }).click()
     expect(await parent.evaluate(() => document.documentElement.scrollWidth > innerWidth)).toBe(false)
+  })
+
+  await test.step('parent deletes a child after confirming in the dialog', async () => {
+    await parent.getByRole('link', { name: '⚙️ Padres' }).click()
+    const remove = parent.locator('.rows li', { hasText: 'Ana María' }).getByRole('button', { name: 'Borrar' })
+    const dialog = parent.getByRole('dialog', { name: '¿Borrar a Ana María?' })
+    await remove.click()
+    await dialog.getByRole('button', { name: 'Cancelar' }).click()
+    await expect(dialog).toBeHidden()
+    await expect(parent.locator('.rows li', { hasText: 'Ana María' })).toBeVisible()
+    await remove.click()
+    await dialog.getByRole('button', { name: 'Borrar' }).click()
+    await expect(parent.locator('.rows li', { hasText: 'Ana María' })).toHaveCount(0)
   })
 
   expect(errors, 'no browser errors').toEqual([])
