@@ -42,11 +42,10 @@ jobs:
           cache: npm
       - run: npm ci
       # Migrations first, so the new frontend never runs against an old schema.
-      - run: npx supabase db push --remote="$SUPABASE_PROJECT_REF" --password="$SUPABASE_DB_PASSWORD" --yes
+      # A DB URL scopes CI to this database only; a Supabase access token would reach the whole account.
+      - run: npx supabase db push --remote="$SUPABASE_DB_URL" --yes
         env:
-          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-          SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
-          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
       - run: npm run build
         env:
           VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL }}

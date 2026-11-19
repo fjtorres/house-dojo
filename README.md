@@ -25,6 +25,6 @@ Cambios de esquema: `npx supabase migration new <nombre>`, nunca editar una migr
 al proyecto de Supabase y publica la web en GitHub Pages.
 
 Configuración del repo en GitHub:
-- Secrets: `SUPABASE_ACCESS_TOKEN`, `SUPABASE_PROJECT_REF`, `SUPABASE_DB_PASSWORD`
+- Secret: `SUPABASE_DB_URL` (Connect > Session pooler, con la contraseña de la BD)
 - Variables: `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY`
 - Settings > Pages > Source: GitHub Actions
