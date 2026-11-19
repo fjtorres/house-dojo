@@ -35,14 +35,24 @@ async function grantAdmin(email: string) {
   expect(error).toBeNull()
 }
 
+// Lists what sticks out when the page scrolls sideways, so a failure says which element to fix.
+async function expectNoHorizontalScroll(page: Page) {
+  await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth ? [] :
+    [...document.querySelectorAll('body *')]
+      .filter((e) => e.getBoundingClientRect().right > innerWidth + 1)
+      .map((e) => `${e.tagName.toLowerCase()}.${e.className} "${(e.textContent ?? '').slice(0, 30)}"`)),
+  { message: 'no horizontal scroll on phone' }).toEqual([])
+}
+
 function collectErrors(page: Page, who: string, errors: string[]) {
   page.on('pageerror', (e) => errors.push(`${who}: ${e.message}`))
   page.on('console', (m) => { if (m.type() === 'error') errors.push(`${who}: ${m.text()}`) })
 }
 
 test('admin approves a family, parent sets it up, kid earns points and redeems a reward', async ({ browser }) => {
-  const run = Date.now()
-  const family = `Los Test ${run}`
+  const run = `${Date.now()}${Math.random().toString(36).slice(2, 6)}` // unique even when runs start in the same ms
+  // one long unbreakable word: the worst case for narrow screens
+  const family = `LosSuperTestersDeLaCasa${run}`
   const parentEmail = `parent${run}@example.com`
   const parent = await (await browser.newContext({ viewport: { width: 1024, height: 900 } })).newPage()
   const kid = await (await browser.newContext({ viewport: { width: 820, height: 1180 }, hasTouch: true })).newPage()
@@ -203,7 +213,7 @@ test('admin approves a family, parent sets it up, kid earns points and redeems a
   await test.step('no horizontal scroll at phone width', async () => {
     await parent.setViewportSize({ width: 390, height: 844 })
     await parent.getByRole('link', { name: '← Volver' }).click()
-    expect(await parent.evaluate(() => document.documentElement.scrollWidth > innerWidth)).toBe(false)
+    await expectNoHorizontalScroll(parent)
   })
 
   await test.step('parent deletes a child after confirming in the dialog', async () => {
@@ -225,7 +235,7 @@ test('admin approves a family, parent sets it up, kid earns points and redeems a
     await admin.reload()
     await admin.setViewportSize({ width: 390, height: 844 })
     await expect(admin.locator('.rows li', { hasText: family })).toBeVisible()
-    expect(await admin.evaluate(() => document.documentElement.scrollWidth > innerWidth), 'no horizontal scroll on phone').toBe(false)
+    await expectNoHorizontalScroll(admin)
     const row = admin.locator('.rows li', { hasText: family })
     await row.getByRole('button', { name: 'Borrar' }).click()
     await admin.getByRole('dialog', { name: `¿Borrar la familia «${family}»?` }).getByRole('button', { name: 'Borrar familia' }).click()

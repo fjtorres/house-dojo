@@ -52,7 +52,9 @@ label { display: grid; gap: 4px; font-weight: 600; }
 .grow small { color: var(--muted); }
 
 .topbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 20px; }
-.topbar nav { display: flex; gap: 8px; align-items: center; }
+.topbar nav { display: flex; gap: 8px; align-items: center; flex: none; }
+/* long family names wrap instead of pushing the buttons off a phone screen */
+.topbar .logo { min-width: 0; overflow-wrap: anywhere; }
 
 /* Grid of children */
 .kids { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 16px; }
@@ -140,4 +142,4 @@ button.danger-fill { background: var(--penalty); color: #fff; font-weight: 700; 
 .notice-icon { font-size: 3rem; line-height: 1; margin-bottom: 8px; }
 .admin .rows li { flex-wrap: wrap; }
 .admin .rows .grow { flex: 1 1 220px; }
-.admin .rows small { overflow-wrap: anywhere; }
+.rows .grow { overflow-wrap: anywhere; } /* long names and emails wrap on phones */
