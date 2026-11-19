@@ -1,0 +1,145 @@
+import { expect, test, type Page } from '@playwright/test'
+
+const APP = 'http://127.0.0.1:5173/'
+const MAILPIT = 'http://127.0.0.1:54324/api/v1' // local Supabase stack's mail catcher
+
+async function magicLink(email: string) {
+  let link: string | undefined
+  await expect.poll(async () => {
+    const { messages } = await (await fetch(`${MAILPIT}/search?query=${encodeURIComponent(`to:${email}`)}`)).json() as { messages: { ID: string }[] }
+    if (!messages.length) return undefined
+    const message = await (await fetch(`${MAILPIT}/message/${messages[0].ID}`)).json() as { Text: string }
+    link = message.Text.match(/https?:\/\/\S+verify\S+/)?.[0]
+    return link
+  }, { message: 'magic link email arrives', timeout: 15_000 }).toBeTruthy()
+  return link!
+}
+
+function collectErrors(page: Page, who: string, errors: string[]) {
+  page.on('pageerror', (e) => errors.push(`${who}: ${e.message}`))
+  page.on('console', (m) => { if (m.type() === 'error') errors.push(`${who}: ${m.text()}`) })
+}
+
+test('parent sets up the family, kid earns points and redeems a reward', async ({ browser }) => {
+  const parent = await (await browser.newContext({ viewport: { width: 1024, height: 900 } })).newPage()
+  const kid = await (await browser.newContext({ viewport: { width: 820, height: 1180 }, hasTouch: true })).newPage()
+  const errors: string[] = []
+  collectErrors(parent, 'parent', errors)
+  collectErrors(kid, 'kid', errors)
+
+  await test.step('parent logs in with a magic link and creates the family', async () => {
+    const email = `parent${Date.now()}@example.com`
+    await parent.goto(APP)
+    await parent.getByLabel('Email').fill(email)
+    await parent.getByRole('button', { name: 'Enviarme un enlace' }).click()
+    await expect(parent.getByText('Te hemos enviado')).toBeVisible()
+    await parent.goto(await magicLink(email))
+    await parent.getByLabel('Nombre de la familia').fill('Los Test')
+    await parent.getByRole('button', { name: 'Crear' }).click()
+  })
+
+  await test.step('parent adds a child from its own page', async () => {
+    await parent.getByRole('link', { name: '⚙️ Padres' }).click()
+    await expect(parent.locator('form'), 'no form until + is pressed').toHaveCount(0)
+    await parent.getByRole('link', { name: 'Añadir niño' }).click()
+    const form = parent.locator('form')
+    await form.getByRole('radio', { name: '🦊' }).click()
+    await form.getByLabel('Nombre').fill('Ana')
+    await form.getByRole('button', { name: 'Añadir' }).click()
+    await expect(parent.locator('.rows li', { hasText: 'Ana' })).toBeVisible()
+    await expect(parent).toHaveURL(/#\/parents\/children$/)
+  })
+
+  await test.step('parent adds tasks, penalties and rewards', async () => {
+    await parent.getByRole('link', { name: '📋 Tareas' }).click()
+    const items = [
+      ['earn', '📚', 'Hacer los deberes', 10], ['earn', '🧹', 'Recoger la habitación', 5],
+      ['penalty', '😠', 'Gritar', 5], ['reward', '📺', 'Ver la TV', 15], ['reward', '🎬', 'Ir al cine', 50],
+    ] as const
+    for (const [kind, icon, name, points] of items) {
+      await parent.getByRole('link', { name: 'Añadir tarea' }).click()
+      const form = parent.locator('form')
+      await form.getByLabel('Tipo').selectOption(kind)
+      await form.getByRole('radio', { name: icon }).click()
+      await form.getByLabel('Nombre').fill(name)
+      await form.getByLabel('Puntos').fill(String(points))
+      await form.getByRole('button', { name: 'Añadir' }).click()
+      await expect(parent.locator('.rows li', { hasText: name })).toBeVisible()
+    }
+  })
+
+  await test.step('parent edits an item; the form starts with its current values', async () => {
+    await parent.locator('.rows li', { hasText: 'Gritar' }).getByRole('link', { name: 'Editar' }).click()
+    const form = parent.locator('form')
+    await expect(form.getByLabel('Tipo')).toHaveValue('penalty')
+    await expect(form.getByRole('radio', { name: '😠' })).toHaveAttribute('aria-checked', 'true')
+    await form.getByRole('radio', { name: '🤬' }).click()
+    await form.getByLabel('Nombre').fill('Decir palabrotas')
+    await form.getByLabel('Puntos').fill('8')
+    await form.getByRole('button', { name: 'Guardar' }).click()
+    await expect(parent.locator('.rows li', { hasText: 'Decir palabrotas' })).toContainText('-8')
+    await expect(parent.locator('.rows li', { hasText: 'Decir palabrotas' })).toContainText('🤬')
+  })
+
+  await test.step('parent edits a child; browser back returns to the edit page', async () => {
+    await parent.getByRole('link', { name: '🧒 Niños' }).click()
+    await parent.locator('.rows li', { hasText: 'Ana' }).getByRole('link', { name: 'Editar' }).click()
+    const form = parent.locator('form')
+    await expect(form.getByRole('radio', { name: '🦊' })).toHaveAttribute('aria-checked', 'true')
+    await form.getByRole('radio', { name: '🐼' }).click()
+    await form.getByLabel('Nombre').fill('Ana María')
+    await form.getByRole('button', { name: 'Guardar' }).click()
+    await expect(parent.locator('.rows li', { hasText: 'Ana María' })).toContainText('🐼')
+    await parent.goBack()
+    await expect(parent.getByRole('heading', { name: /Editar a/ })).toBeVisible()
+  })
+
+  const code = await test.step('parent reads the invite code', async () => {
+    await parent.getByRole('link', { name: '🔑 Código' }).click()
+    return (await parent.locator('.code').textContent())!.trim()
+  })
+
+  await test.step('kid tablet joins anonymously with the code', async () => {
+    await kid.goto(APP)
+    await kid.getByRole('button', { name: /Usar este dispositivo/ }).click()
+    await kid.getByLabel('Código').fill(` ${code.toUpperCase()} `)
+    await kid.getByLabel('Nombre de este dispositivo').fill('Tablet del salón')
+    await kid.getByRole('button', { name: 'Unirme' }).click()
+    await kid.locator('.kid-card').click()
+    await expect(kid.getByText('Restar puntos'), 'kid does not see penalties').toHaveCount(0)
+    await expect(kid.getByRole('link', { name: '⚙️ Padres' }), 'kid has no parent panel').toHaveCount(0)
+    await expect(kid.getByRole('button', { name: /Ver la TV/ }), 'reward locked without points').toBeDisabled()
+  })
+
+  await test.step('kid proposes a task; parent sees it live and approves', async () => {
+    await kid.getByRole('button', { name: /Hacer los deberes/ }).click()
+    await expect(kid.locator('.toast')).toBeVisible()
+    await parent.getByRole('link', { name: '← Volver' }).click()
+    await expect(parent.getByText('1 por aprobar')).toBeVisible({ timeout: 10_000 })
+    await parent.locator('.kid-card').click()
+    await parent.getByRole('button', { name: 'Aprobar' }).click()
+    await expect(parent.locator('.hero-points')).toHaveText('10 ⭐')
+    await parent.getByRole('button', { name: /Recoger la habitación/ }).click()
+    await expect(parent.locator('.hero-points')).toHaveText('15 ⭐')
+  })
+
+  await test.step('kid sees the points live, redeems the reward, which then reserves the points', async () => {
+    await expect(kid.locator('.hero-points')).toHaveText('15 ⭐', { timeout: 10_000 })
+    await expect(kid.getByRole('button', { name: /Ver la TV/ })).toBeEnabled()
+    await kid.getByRole('button', { name: /Ver la TV/ }).click()
+    await expect(kid.getByRole('button', { name: /Ver la TV/ }), 'pending reward reserves the points').toBeDisabled()
+  })
+
+  await test.step('parent approves the reward; balance back to 0', async () => {
+    await parent.getByRole('button', { name: 'Aprobar' }).click()
+    await expect(parent.locator('.hero-points')).toHaveText('0 ⭐')
+  })
+
+  await test.step('no horizontal scroll at phone width', async () => {
+    await parent.setViewportSize({ width: 390, height: 844 })
+    await parent.getByRole('link', { name: '← Volver' }).click()
+    expect(await parent.evaluate(() => document.documentElement.scrollWidth > innerWidth)).toBe(false)
+  })
+
+  expect(errors, 'no browser errors').toEqual([])
+})
