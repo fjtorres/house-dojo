@@ -1,9 +1,11 @@
 import { useEffect, useState, type CSSProperties } from 'react'
 import { supabase } from './lib/supabase'
 import { useConfirm } from './useConfirm'
-import { itemValue, signed, type Child, type FamilyData, type Item, type Kind, type Tx } from './useFamily'
+import { itemValue, signed, txStatusLabel, type Child, type FamilyData, type Item, type Kind, type Tx } from './useFamily'
+import { TransactionDetail } from './TransactionDetail'
 
-type Props = { child: Child; data: FamilyData; isParent: boolean; reload: () => void }
+// txId: movement whose detail is open (#/child/<id>/tx/<txId>)
+type Props = { child: Child; data: FamilyData; isParent: boolean; reload: () => void; txId?: string }
 
 const sections: { kind: Kind; title: string; parentsOnly?: boolean }[] = [
   { kind: 'earn', title: '⭐ Ganar puntos' },
@@ -12,11 +14,12 @@ const sections: { kind: Kind; title: string; parentsOnly?: boolean }[] = [
 ]
 const defaultIcon: Record<Kind, string> = { earn: '⭐', reward: '🎁', penalty: '⚠️' }
 
-export function ChildView({ child, data, isParent, reload }: Props) {
+export function ChildView({ child, data, isParent, reload, txId }: Props) {
   const points = data.balances[child.id] ?? 0
   const [toast, setToast] = useState<{ text: string; kind: Kind }>()
   const [confirm, confirmDialog] = useConfirm()
   const history = data.txs.filter((t) => t.child_id === child.id)
+  const detail = txId ? history.find((t) => t.id === txId) : undefined
   // pending deductions already count as spent, so a reward can't be requested twice with the same points
   const available = points + history.filter((t) => t.status === 'pending' && t.points < 0).reduce((sum, t) => sum + t.points, 0)
 
@@ -97,11 +100,13 @@ export function ChildView({ child, data, isParent, reload }: Props) {
         <ul className="history">
           {history.map((t) => (
             <li key={t.id} className={t.status}>
-              <span className="item-icon">{t.items?.icon || defaultIcon[(t.items?.kind as Kind) ?? 'earn']}</span>
-              <span className="grow">
-                {t.items?.name}
-                <small>{new Date(t.created_at).toLocaleString('es', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</small>
-              </span>
+              <a className="tx-link" href={`#/child/${child.id}/tx/${t.id}`}>
+                <span className="item-icon">{t.items?.icon || defaultIcon[(t.items?.kind as Kind) ?? 'earn']}</span>
+                <span className="grow">
+                  {t.items?.name}
+                  <small>{new Date(t.created_at).toLocaleString('es', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</small>
+                </span>
+              </a>
               <b className={t.points >= 0 ? 'plus' : 'minus'}>{signed(t.points)}</b>
               {t.status === 'pending' &&
                 (isParent ? (
@@ -115,7 +120,7 @@ export function ChildView({ child, data, isParent, reload }: Props) {
               {t.status === 'approved' && isParent && (
                 <button className="link" aria-label="Anular" onClick={() => setStatus(t, 'rejected')}>↩</button>
               )}
-              {t.status === 'rejected' && <span className="tag">anulado</span>}
+              {t.status === 'rejected' && <span className="tag">{txStatusLabel(t)}</span>}
             </li>
           ))}
         </ul>
@@ -123,6 +128,10 @@ export function ChildView({ child, data, isParent, reload }: Props) {
 
       {toast && <div className={`toast ${toast.kind}`} role="status">{toast.text}</div>}
       {confirmDialog}
+      {detail && (
+        // closing goes back in history, so Escape, Cerrar and the browser's back button all agree
+        <TransactionDetail tx={detail} isParent={isParent} defaultIcon={defaultIcon[(detail.items?.kind as Kind) ?? 'earn']} onClose={() => window.history.back()} />
+      )}
     </div>
   )
 }

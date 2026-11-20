@@ -42,7 +42,7 @@ export function FamilyHome({ familyId, userId, isAdmin }: Props) {
       </header>
 
       {child ? (
-        <ChildView child={child} data={data} isParent={isParent} reload={reload} />
+        <ChildView child={child} data={data} isParent={isParent} reload={reload} txId={rest[1] === 'tx' ? rest[2] : undefined} />
       ) : section === 'parents' && isParent ? (
         // keyed by route so a page's error message doesn't follow you to the next page
         <ParentPanel key={route.join('/')} route={rest} data={data} userId={userId} reload={reload} />
