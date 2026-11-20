@@ -246,9 +246,42 @@ test('admin approves a family, parent sets it up, kid earns points and redeems a
     await expect(detail).toBeHidden()
   })
 
-  await test.step('no horizontal scroll at phone width', async () => {
+  await test.step('children carousel: arrows only when they do not all fit', async () => {
+    for (const name of ['Bruno', 'Carla']) {
+      await parent.goto(`${APP}#/parents/children/new`)
+      await parent.locator('form').getByLabel('Nombre').fill(name)
+      await parent.locator('form').getByRole('button', { name: 'Añadir' }).click()
+      await expect(parent.locator('.rows li', { hasText: name })).toBeVisible()
+    }
+    await parent.goto(`${APP}#/`)
+    const kids = parent.getByRole('group', { name: 'Niños' })
+    const prev = kids.getByRole('button', { name: 'Anterior' })
+    const next = kids.getByRole('button', { name: 'Siguiente' })
+    await expect(kids.locator('.kid-card')).toHaveCount(3)
+    await expect(next, 'three children fit on a wide screen').toHaveCount(0)
+
     await parent.setViewportSize({ width: 390, height: 844 })
-    await parent.getByRole('link', { name: '← Volver' }).click()
+    await expect(next).toBeEnabled()
+    await expect(prev).toBeDisabled()
+    await expect(kids.locator('.kid-card', { hasText: 'Ana María' })).toBeInViewport({ ratio: 0.9 })
+    await next.click()
+    await expect(kids.locator('.kid-card', { hasText: 'Bruno' })).toBeInViewport({ ratio: 0.9 })
+    await expect(prev).toBeEnabled()
+    await next.click()
+    await expect(kids.locator('.kid-card', { hasText: 'Carla' })).toBeInViewport({ ratio: 0.9 })
+    await expect(next, 'nothing left to the right').toBeDisabled()
+    await prev.click()
+    await prev.click()
+    await expect(kids.locator('.kid-card', { hasText: 'Ana María' })).toBeInViewport({ ratio: 0.9 })
+    await expect(prev).toBeDisabled()
+
+    // a swipe is the browser's own sideways scroll of the row
+    await kids.locator('.carousel-track').evaluate((t) => t.scrollTo({ left: t.scrollWidth }))
+    await expect(next).toBeDisabled()
+    await expect(kids.locator('.kid-card', { hasText: 'Carla' })).toBeInViewport({ ratio: 0.9 })
+  })
+
+  await test.step('no horizontal scroll at phone width', async () => {
     await expectNoHorizontalScroll(parent)
   })
 
