@@ -62,3 +62,5 @@ Para quitar el rol: `delete from public.admins where user_id = '<uuid>';`
 - La tablet de los niños entra sin email («Dispositivo de los niños») y se une con el código: rol `child`.
 - Quien se une con el código entra como `child`; un padre lo sube a `parent` desde ⚙️ Padres.
 - Lo que marca un niño queda *por aprobar*; lo que marca un padre cuenta al momento y se puede anular.
+- Cada movimiento guarda quién lo propuso, aprobó, rechazó o anuló y cuándo (`transaction_events`, escrito
+  solo por un trigger). Se ve pulsando el movimiento en el historial; los niños ven «papá o mamá» en vez del email.

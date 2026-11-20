@@ -6,7 +6,11 @@ export type Kind = 'earn' | 'penalty' | 'reward'
 export type Child = Tables<'children'>
 export type Item = Tables<'items'>
 export type Member = Tables<'family_members'>
-export type Tx = Tables<'transactions'> & { items: Pick<Item, 'name' | 'icon' | 'kind'> | null }
+export type TxEvent = Pick<Tables<'transaction_events'>, 'id' | 'action' | 'actor_name' | 'actor_role' | 'created_at'>
+export type Tx = Tables<'transactions'> & {
+  items: Pick<Item, 'name' | 'icon' | 'kind'> | null
+  transaction_events: TxEvent[]
+}
 
 export type FamilyData = {
   family: Tables<'families'>
@@ -30,7 +34,7 @@ export function useFamily(familyId: string) {
       supabase.from('items').select().eq('family_id', familyId).eq('archived', false).order('points'),
       supabase.from('child_balances').select().eq('family_id', familyId),
       // shortcut: last 300 transactions only; paginate the history if a family outgrows it.
-      supabase.from('transactions').select('*, items(name, icon, kind)').eq('family_id', familyId)
+      supabase.from('transactions').select('*, items(name, icon, kind), transaction_events(id, action, actor_name, actor_role, created_at)').eq('family_id', familyId)
         .order('created_at', { ascending: false }).limit(300),
     ])
     const failed = [family, members, children, items, balances, txs].find((r) => r.error)?.error
@@ -65,3 +69,9 @@ export function useFamily(familyId: string) {
 
 export const signed = (n: number) => (n > 0 ? `+${n}` : `${n}`)
 export const itemValue = (item: Pick<Item, 'kind' | 'points'>) => (item.kind === 'earn' ? item.points : -item.points)
+
+// A rejected movement was either turned down while pending or undone after approval.
+export const txStatusLabel = (tx: Tx) =>
+  tx.status === 'pending' ? 'por aprobar'
+    : tx.status === 'approved' ? 'aprobado'
+      : tx.transaction_events.some((e) => e.action === 'undone') ? 'anulado' : 'rechazado'

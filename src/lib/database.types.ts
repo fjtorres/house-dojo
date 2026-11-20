@@ -111,6 +111,32 @@ isOneToOne: false
       referencedColumns: ["id"]
     }
                   ]
+                },"transaction_events": {
+                  Row: {
+                    "action": string,"actor_id": string | null,"actor_name": string | null,"actor_role": string | null,"created_at": string,"family_id": string,"id": number,"transaction_id": string
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "action": string,"actor_id"?: string | null,"actor_name"?: string | null,"actor_role"?: string | null,"created_at"?: string,"family_id": string,"id"?: never,"transaction_id": string
+                  }
+                  Update: {
+                    "action"?: string,"actor_id"?: string | null,"actor_name"?: string | null,"actor_role"?: string | null,"created_at"?: string,"family_id"?: string,"id"?: never,"transaction_id"?: string
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "transaction_events_family_id_fkey"
+      columns: ["family_id"]
+isOneToOne: false
+      referencedRelation: "families"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "transaction_events_transaction_id_fkey"
+      columns: ["transaction_id"]
+isOneToOne: false
+      referencedRelation: "transactions"
+      referencedColumns: ["id"]
+    }
+                  ]
                 },"transactions": {
                   Row: {
                     "child_id": string,"created_at": string,"created_by": string | null,"family_id": string,"id": string,"item_id": string,"points": number,"status": string

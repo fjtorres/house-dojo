@@ -210,6 +210,42 @@ test('admin approves a family, parent sets it up, kid earns points and redeems a
     await expect(parent.locator('.history li', { hasText: 'Ver la TV' })).toContainText('anulado')
   })
 
+  await test.step('parent opens a movement and sees who did what, and when', async () => {
+    await parent.locator('.history li', { hasText: 'Ver la TV' }).getByRole('link').click()
+    const detail = parent.getByRole('dialog', { name: 'Ver la TV' })
+    const steps = detail.getByRole('list', { name: 'Historial del movimiento' }).getByRole('listitem')
+    await expect(steps).toHaveCount(3)
+    await expect(steps.nth(0)).toContainText('Propuesto por Tablet del salón')
+    await expect(steps.nth(1)).toContainText(`Aprobado por ${parentEmail}`)
+    await expect(steps.nth(2)).toContainText(`Anulado por ${parentEmail}`)
+    await expect(steps.nth(2)).toContainText(/\d{2}:\d{2}/)
+    await expect(detail).toContainText('anulado')
+    await parent.setViewportSize({ width: 390, height: 844 })
+    await expect.poll(() => detail.evaluate((d) => d.scrollWidth <= d.clientWidth), { message: 'long emails fit in the detail on a phone' }).toBe(true)
+    await parent.setViewportSize({ width: 1024, height: 900 })
+    await parent.keyboard.press('Escape')
+    await expect(detail).toBeHidden()
+    await expect(parent).toHaveURL(/#\/child\/[^/]+$/)
+  })
+
+  await test.step('a movement a parent recorded directly; the back button closes the detail', async () => {
+    await parent.locator('.history li', { hasText: 'Recoger la habitación' }).getByRole('link').click()
+    const steps = parent.getByRole('dialog', { name: 'Recoger la habitación' }).getByRole('listitem')
+    await expect(steps).toHaveText([new RegExp(`Registrado por ${parentEmail}`), new RegExp(`Aprobado por ${parentEmail}`)])
+    await parent.goBack()
+    await expect(parent.getByRole('dialog')).toHaveCount(0)
+  })
+
+  await test.step('kid sees the same trail without adult emails', async () => {
+    await kid.locator('.history li', { hasText: 'Ver la TV' }).getByRole('link').click()
+    const detail = kid.getByRole('dialog', { name: 'Ver la TV' })
+    await expect(detail).toContainText('Aprobado por papá o mamá')
+    await expect(detail).toContainText('Propuesto por Tablet del salón')
+    await expect(detail).not.toContainText('@')
+    await detail.getByRole('button', { name: 'Cerrar' }).click()
+    await expect(detail).toBeHidden()
+  })
+
   await test.step('no horizontal scroll at phone width', async () => {
     await parent.setViewportSize({ width: 390, height: 844 })
     await parent.getByRole('link', { name: '← Volver' }).click()

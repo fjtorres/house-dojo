@@ -128,12 +128,12 @@ a:focus-visible { outline: 3px solid var(--primary); outline-offset: 2px; }
 .tabs a { flex: none; padding: 10px 16px; border-radius: 999px; background: var(--card); color: var(--text); text-decoration: none; font-weight: 700; box-shadow: var(--shadow); }
 .tabs a[aria-current='page'] { background: var(--primary); color: #fff; }
 
-dialog.confirm { border: 0; padding: 0; border-radius: var(--radius); width: min(420px, calc(100% - 32px)); color: var(--text); background: var(--card); box-shadow: 0 12px 40px rgba(0, 0, 0, 0.25); animation: pop 0.25s ease-out; }
-dialog.confirm::backdrop { background: rgba(43, 35, 64, 0.45); }
-.confirm > div { display: grid; gap: 12px; padding: 24px; text-align: center; }
-.confirm h2 { margin: 0; }
-.confirm p { margin: 0; color: var(--muted); }
-.confirm-icon { font-size: 3rem; line-height: 1; }
+dialog.modal { border: 0; padding: 0; border-radius: var(--radius); width: min(420px, calc(100% - 32px)); color: var(--text); background: var(--card); box-shadow: 0 12px 40px rgba(0, 0, 0, 0.25); animation: pop 0.25s ease-out; }
+dialog.modal::backdrop { background: rgba(43, 35, 64, 0.45); }
+.modal > div { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; padding: 24px; text-align: center; overflow-wrap: anywhere; }
+.modal h2 { margin: 0; }
+.modal p { margin: 0; color: var(--muted); }
+.confirm-icon, .modal-icon { font-size: 3rem; line-height: 1; }
 .confirm-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
 .confirm-actions button { flex: 1 1 140px; padding: 14px; }
 button.danger-fill { background: var(--penalty); color: #fff; font-weight: 700; }
@@ -143,3 +143,10 @@ button.danger-fill { background: var(--penalty); color: #fff; font-weight: 700; 
 .admin .rows li { flex-wrap: wrap; }
 .admin .rows .grow { flex: 1 1 220px; }
 .rows .grow { overflow-wrap: anywhere; } /* long names and emails wrap on phones */
+
+.tx-link { display: flex; align-items: center; gap: 12px; flex: 1; min-width: 0; color: inherit; text-decoration: none; }
+.tx-link:hover .grow { text-decoration: underline; }
+.timeline { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; text-align: left; }
+.timeline li { display: flex; gap: 10px; align-items: flex-start; }
+.timeline li > span:first-child { font-size: 1.3rem; line-height: 1.4; }
+.timeline small { display: block; color: var(--muted); }
