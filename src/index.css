@@ -56,7 +56,7 @@ label { display: grid; gap: 4px; font-weight: 600; }
 /* long family names wrap instead of pushing the buttons off a phone screen */
 .topbar .logo { min-width: 0; overflow-wrap: anywhere; }
 
-/* Children: one row that scrolls sideways when they don't fit */
+/* Children: on a phone, one row that scrolls sideways */
 .carousel { position: relative; }
 .carousel-track {
   display: flex; gap: 16px; overflow-x: auto; scroll-snap-type: x mandatory; overscroll-behavior-x: contain;
@@ -74,6 +74,11 @@ label { display: grid; gap: 4px; font-weight: 600; }
 .carousel-arrow:disabled { opacity: 0; pointer-events: none; }
 .carousel-arrow.prev { left: -8px; }
 .carousel-arrow.next { right: -8px; }
+/* wide screens have room for everyone: back to a grid that wraps, so nothing scrolls and no arrows show */
+@media (min-width: 700px) {
+  .carousel-track { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); margin: 0; padding: 0; overflow: visible; }
+  .carousel-track > * { max-width: none; }
+}
 .kid-card {
   display: grid; justify-items: center; gap: 6px; padding: 24px 16px;
   border-radius: 28px; background: var(--card); border-bottom: 8px solid var(--kid);

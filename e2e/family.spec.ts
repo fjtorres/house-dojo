@@ -246,8 +246,8 @@ test('admin approves a family, parent sets it up, kid earns points and redeems a
     await expect(detail).toBeHidden()
   })
 
-  await test.step('children carousel: arrows only when they do not all fit', async () => {
-    for (const name of ['Bruno', 'Carla']) {
+  await test.step('children: a grid on wide screens, a carousel on phones', async () => {
+    for (const name of ['Bruno', 'Carla', 'Daniel']) {
       await parent.goto(`${APP}#/parents/children/new`)
       await parent.locator('form').getByLabel('Nombre').fill(name)
       await parent.locator('form').getByRole('button', { name: 'Añadir' }).click()
@@ -257,8 +257,11 @@ test('admin approves a family, parent sets it up, kid earns points and redeems a
     const kids = parent.getByRole('group', { name: 'Niños' })
     const prev = kids.getByRole('button', { name: 'Anterior' })
     const next = kids.getByRole('button', { name: 'Siguiente' })
-    await expect(kids.locator('.kid-card')).toHaveCount(3)
-    await expect(next, 'three children fit on a wide screen').toHaveCount(0)
+    await expect(kids.locator('.kid-card')).toHaveCount(4)
+    // 760px fits three per row: a carousel would need arrows, the grid wraps the fourth below instead
+    await parent.setViewportSize({ width: 760, height: 900 })
+    await expect(kids.locator('.kid-card', { hasText: 'Daniel' }), 'wide screen wraps instead of scrolling').toBeInViewport()
+    await expect(next, 'no arrows on a wide screen').toHaveCount(0)
 
     await parent.setViewportSize({ width: 390, height: 844 })
     await expect(next).toBeEnabled()
@@ -269,7 +272,10 @@ test('admin approves a family, parent sets it up, kid earns points and redeems a
     await expect(prev).toBeEnabled()
     await next.click()
     await expect(kids.locator('.kid-card', { hasText: 'Carla' })).toBeInViewport({ ratio: 0.9 })
+    await next.click()
+    await expect(kids.locator('.kid-card', { hasText: 'Daniel' })).toBeInViewport({ ratio: 0.9 })
     await expect(next, 'nothing left to the right').toBeDisabled()
+    await prev.click()
     await prev.click()
     await prev.click()
     await expect(kids.locator('.kid-card', { hasText: 'Ana María' })).toBeInViewport({ ratio: 0.9 })
@@ -278,7 +284,7 @@ test('admin approves a family, parent sets it up, kid earns points and redeems a
     // a swipe is the browser's own sideways scroll of the row
     await kids.locator('.carousel-track').evaluate((t) => t.scrollTo({ left: t.scrollWidth }))
     await expect(next).toBeDisabled()
-    await expect(kids.locator('.kid-card', { hasText: 'Carla' })).toBeInViewport({ ratio: 0.9 })
+    await expect(kids.locator('.kid-card', { hasText: 'Daniel' })).toBeInViewport({ ratio: 0.9 })
   })
 
   await test.step('no horizontal scroll at phone width', async () => {

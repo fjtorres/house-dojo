@@ -2,7 +2,8 @@ import { useEffect, useRef, useState, type ReactNode } from 'react'
 
 type Props = { label: string; children: ReactNode }
 
-// Horizontal row: swipe (native scroll + snap) or use the arrows, which show only when something doesn't fit.
+// On a phone, a row to swipe (native scroll + snap) or move with the arrows; on a wide screen, a grid (see index.css).
+// The arrows show only when something doesn't fit, so the grid never gets them.
 export function Carousel({ label, children }: Props) {
   const track = useRef<HTMLDivElement>(null)
   const [canPrev, setCanPrev] = useState(false)
