@@ -9,7 +9,8 @@ export function PendingFamily({ familyId, name, onChange }: Props) {
     const channel = supabase
       .channel(`family-status:${familyId}:${crypto.randomUUID()}`)
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'families', filter: `id=eq.${familyId}` }, () => onChange())
-      .subscribe()
+      // a decision made before the channel was (re)joined sends no event: check again once listening
+      .subscribe((status) => status === 'SUBSCRIBED' && onChange())
     return () => {
       supabase.removeChannel(channel)
     }

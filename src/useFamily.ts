@@ -58,7 +58,8 @@ export function useFamily(familyId: string) {
     for (const table of ['transactions', 'children', 'items']) {
       channel.on('postgres_changes', { event: '*', schema: 'public', table, filter: `family_id=eq.${familyId}` }, () => reload())
     }
-    channel.subscribe()
+    // changes made before the channel was (re)joined send no event: reload once listening
+    channel.subscribe((status) => status === 'SUBSCRIBED' && reload())
     return () => {
       supabase.removeChannel(channel)
     }

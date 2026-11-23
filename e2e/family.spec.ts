@@ -1,5 +1,5 @@
 import { execSync } from 'node:child_process'
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test, type Page, type WebSocketRoute } from '@playwright/test'
 import { createClient } from '@supabase/supabase-js'
 
 const APP = 'http://127.0.0.1:5173/'
@@ -44,6 +44,18 @@ async function expectNoHorizontalScroll(page: Page) {
   { message: 'no horizontal scroll on phone' }).toEqual([])
 }
 
+// Sits on the app's Realtime socket: it can miss messages (deaf), then drop so the app reconnects.
+async function tapRealtime(page: Page) {
+  let socket: WebSocketRoute | undefined
+  const tap = { deaf: false, reconnect: async () => { tap.deaf = false; await socket!.close() } }
+  await page.routeWebSocket(/\/realtime\//, (ws) => {
+    const server = ws.connectToServer()
+    server.onMessage((m) => { if (!tap.deaf) ws.send(m) })
+    socket = ws
+  })
+  return tap
+}
+
 function collectErrors(page: Page, who: string, errors: string[]) {
   page.on('pageerror', (e) => errors.push(`${who}: ${e.message}`))
   page.on('console', (m) => { if (m.type() === 'error') errors.push(`${who}: ${m.text()}`) })
@@ -57,6 +69,7 @@ test('admin approves a family, parent sets it up, kid earns points and redeems a
   const parent = await (await browser.newContext({ viewport: { width: 1024, height: 900 } })).newPage()
   const kid = await (await browser.newContext({ viewport: { width: 820, height: 1180 }, hasTouch: true })).newPage()
   const admin = await (await browser.newContext({ viewport: { width: 1024, height: 900 } })).newPage()
+  const kidRealtime = await tapRealtime(kid)
   const errors: string[] = []
   collectErrors(parent, 'parent', errors)
   collectErrors(kid, 'kid', errors)
@@ -87,13 +100,18 @@ test('admin approves a family, parent sets it up, kid earns points and redeems a
   await test.step('a rejected request shows a notice and lets the user ask again', async () => {
     const other = await (await browser.newContext()).newPage()
     collectErrors(other, 'other', errors)
+    const otherRealtime = await tapRealtime(other)
     await logIn(other, `other${run}@example.com`)
     await other.getByLabel('Nombre de la familia').fill(`Rechazada ${run}`)
     await other.getByRole('button', { name: 'Crear' }).click()
     await expect(other.getByText('pendiente de aprobación')).toBeVisible()
+    // the decision's live event gets lost (a wifi blip): the screen must catch up once it reconnects
+    otherRealtime.deaf = true
     await admin.reload()
     await admin.locator('.rows li', { hasText: `Rechazada ${run}` }).getByRole('button', { name: /Rechazar/ }).click()
     await expect(admin.locator('.card', { hasText: 'Rechazadas' }).locator('.rows li', { hasText: `Rechazada ${run}` })).toBeVisible()
+    await expect(other.getByText('pendiente de aprobación'), 'missed the event').toBeVisible()
+    await otherRealtime.reconnect()
     await expect(other.getByRole('heading', { name: `No se aceptó «Rechazada ${run}»` })).toBeVisible({ timeout: 10_000 })
     await expect(other.getByRole('button', { name: 'Crear' }), 'can ask again').toBeVisible()
     await other.context().close()
@@ -180,11 +198,16 @@ test('admin approves a family, parent sets it up, kid earns points and redeems a
     await parent.locator('.kid-card').click()
     await parent.getByRole('button', { name: 'Aprobar' }).click()
     await expect(parent.locator('.hero-points')).toHaveText('10 ⭐')
+    await expect(kid.locator('.hero-points'), 'kid sees the approval live').toHaveText('10 ⭐', { timeout: 10_000 })
+    // the next change's live event gets lost on the tablet (a wifi blip)
+    kidRealtime.deaf = true
     await parent.getByRole('button', { name: /Recoger la habitación/ }).click()
     await expect(parent.locator('.hero-points')).toHaveText('15 ⭐')
   })
 
-  await test.step('kid sees the points live, redeems the reward, which then reserves the points', async () => {
+  await test.step('kid tablet catches up after reconnecting, redeems the reward, which then reserves the points', async () => {
+    await expect(kid.locator('.hero-points'), 'missed the event').toHaveText('10 ⭐')
+    await kidRealtime.reconnect()
     await expect(kid.locator('.hero-points')).toHaveText('15 ⭐', { timeout: 10_000 })
     await expect(kid.getByRole('button', { name: /Ver la TV/ })).toBeEnabled()
     await kid.getByRole('button', { name: /Ver la TV/ }).click()
@@ -275,11 +298,17 @@ test('admin approves a family, parent sets it up, kid earns points and redeems a
     await next.click()
     await expect(kids.locator('.kid-card', { hasText: 'Daniel' })).toBeInViewport({ ratio: 0.9 })
     await expect(next, 'nothing left to the right').toBeDisabled()
-    await prev.click()
-    await prev.click()
-    await prev.click()
-    await expect(kids.locator('.kid-card', { hasText: 'Ana María' })).toBeInViewport({ ratio: 0.9 })
+    for (const name of ['Carla', 'Bruno', 'Ana María']) {
+      await prev.click()
+      await expect(kids.locator('.kid-card', { hasText: name })).toBeInViewport({ ratio: 0.9 })
+    }
     await expect(prev).toBeDisabled()
+
+    // two quick taps move two cards, even though the first scroll is still animating
+    await next.click()
+    await next.click()
+    await expect(kids.locator('.kid-card', { hasText: 'Carla' })).toBeInViewport({ ratio: 0.9 })
+    await expect(kids.locator('.kid-card', { hasText: 'Bruno' })).not.toBeInViewport({ ratio: 0.9 })
 
     // a swipe is the browser's own sideways scroll of the row
     await kids.locator('.carousel-track').evaluate((t) => t.scrollTo({ left: t.scrollWidth }))
