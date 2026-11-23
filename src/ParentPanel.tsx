@@ -11,10 +11,10 @@ type Props = { data: FamilyData; userId: string; reload: () => void; route: stri
 
 const kindLabel: Record<Kind, string> = { earn: '⭐ Suman', penalty: '⚠️ Restan', reward: '🎁 Recompensas' }
 const tabs = [
-  ['children', '🧒 Niños'],
-  ['items', '📋 Tareas'],
-  ['members', '👨‍👩‍👧 Miembros'],
-  ['code', '🔑 Código'],
+  ['children', '🧒', 'Niños'],
+  ['items', '📋', 'Tareas'],
+  ['members', '👨‍👩‍👧', 'Miembros'],
+  ['code', '🔑', 'Código'],
 ] as const
 const CHILDREN = '#/parents/children'
 const ITEMS = '#/parents/items'
@@ -130,8 +130,10 @@ export function ParentPanel({ data, userId, reload, route }: Props) {
   return (
     <div className="panel">
       <nav className="tabs" aria-label="Menú de padres">
-        {tabs.map(([key, label]) => (
-          <a key={key} href={`#/parents/${key}`} aria-current={tab === key ? 'page' : undefined}>{label}</a>
+        {tabs.map(([key, icon, label]) => (
+          <a key={key} href={`#/parents/${key}`} aria-current={tab === key ? 'page' : undefined}>
+            <span aria-hidden>{icon}</span> {label}
+          </a>
         ))}
       </nav>
       {page}
