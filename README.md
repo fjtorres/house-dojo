@@ -68,6 +68,6 @@ Para quitar el rol: `delete from public.admins where user_id = '<uuid>';`
 ## Idiomas
 
 La app está en español e inglés. Usa el idioma del navegador (si no lo tiene, español) y recuerda el que se
-elija en el selector 🌐 (pantalla de entrada o menú). Los textos están en `src/i18n/`; para añadir un idioma,
-copia `en.tsx`, tradúcelo (TypeScript avisa de cualquier texto que falte) y añádelo a `languages` en
+elija en el selector de idioma (pantalla de entrada o menú). Los textos están en `src/i18n/`; para añadir un idioma,
+copia `en.tsx`, tradúcelo (TypeScript avisa de cualquier texto que falte) y añádelo, con su nombre y su bandera, a `languages` en
 `src/i18n/index.ts`.

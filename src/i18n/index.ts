@@ -4,9 +4,9 @@ import { en } from './en'
 
 // To add a language: copy en.tsx, translate it (TypeScript flags any missing key) and list it here.
 export const languages = {
-  es: { name: 'Español', messages: es },
-  en: { name: 'English', messages: en },
-} satisfies Record<string, { name: string; messages: Messages }>
+  es: { name: 'Español', flag: '🇪🇸', messages: es },
+  en: { name: 'English', flag: '🇬🇧', messages: en },
+} satisfies Record<string, { name: string; flag: string; messages: Messages }>
 export type Lang = keyof typeof languages
 
 const KEY = 'lang'
