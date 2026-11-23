@@ -25,15 +25,47 @@ async function logIn(page: Page, email: string) {
   await page.goto(await magicLink(email))
 }
 
-// Admins are granted by hand in the database; the test does it with the local stack's service key.
-async function grantAdmin(email: string) {
+// The local stack's service key: bypasses RLS, for what the app itself can't do (grant admin, clean up).
+function serviceClient() {
   const env = Object.fromEntries([...execSync('npx supabase status -o env', { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).matchAll(/^(\w+)="(.*)"$/gm)].map((m) => [m[1], m[2]]))
-  const service = createClient(env.API_URL, env.SERVICE_ROLE_KEY, { auth: { persistSession: false } })
+  return createClient(env.API_URL, env.SERVICE_ROLE_KEY, { auth: { persistSession: false } })
+}
+
+// Admins are granted by hand in the database; the test does it with the service key.
+async function grantAdmin(email: string) {
+  const service = serviceClient()
   const { data } = await service.auth.admin.listUsers({ perPage: 1000 })
   const user = data.users.find((u) => u.email === email)!
   const { error } = await service.from('admins').insert({ user_id: user.id })
   expect(error).toBeNull()
 }
+
+// The signed-in user's id, read from the session supabase-js keeps in localStorage.
+const userId = (page: Page) => page.evaluate(() =>
+  JSON.parse(Object.entries(localStorage).find(([k]) => k.endsWith('-auth-token'))![1]).user.id as string)
+
+// Deletes what one run left behind, passed or failed: its users (…<run>@example.com), the families
+// they requested, and the anonymous tablets it signed in (they have no email to find them by).
+// Nothing outside the run.
+async function cleanUp(run: string, tablets: string[]) {
+  const service = serviceClient()
+  const { data, error } = await service.auth.admin.listUsers({ perPage: 1000 })
+  if (error) throw error
+  const users = data.users.filter((u) => u.email?.endsWith(`${run}@example.com`)).map((u) => u.id)
+  // children, items, movements and members go with their family
+  const deleted = await service.from('families').delete().in('requested_by', users)
+  if (deleted.error) throw deleted.error
+  for (const id of [...users, ...tablets]) {
+    const { error } = await service.auth.admin.deleteUser(id)
+    if (error) throw error
+  }
+}
+
+let run = ''
+const tablets: string[] = []
+test.afterEach(async () => {
+  if (run) await cleanUp(run, tablets.splice(0))
+})
 
 // Lists what sticks out when the page scrolls sideways, so a failure says which element to fix.
 async function expectNoHorizontalScroll(page: Page) {
@@ -62,7 +94,7 @@ function collectErrors(page: Page, who: string, errors: string[]) {
 }
 
 test('admin approves a family, parent sets it up, kid earns points and redeems a reward', async ({ browser }) => {
-  const run = `${Date.now()}${Math.random().toString(36).slice(2, 6)}` // unique even when runs start in the same ms
+  run = `${Date.now()}${Math.random().toString(36).slice(2, 6)}` // unique even when runs start in the same ms
   // one unbreakable word of 40 characters, the longest name allowed: the worst case for narrow screens
   const family = `LosSuperTestersDeLaCasa${run}`
   const parentEmail = `parent${run}@example.com`
@@ -185,6 +217,7 @@ test('admin approves a family, parent sets it up, kid earns points and redeems a
     await kid.getByLabel('Nombre de este dispositivo').fill('Tablet del salón')
     await kid.getByRole('button', { name: 'Unirme' }).click()
     await kid.locator('.kid-card').click()
+    tablets.push(await userId(kid))
     await expect(kid.getByText('Restar puntos'), 'kid does not see penalties').toHaveCount(0)
     await expect(kid.getByRole('link', { name: '⚙️ Padres' }), 'kid has no parent panel').toHaveCount(0)
     await expect(kid.getByRole('button', { name: /Ver la TV/ }), 'reward locked without points').toBeDisabled()
