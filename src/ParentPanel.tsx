@@ -12,7 +12,7 @@ type Props = { data: FamilyData; userId: string; reload: () => void; route: stri
 const kindLabel: Record<Kind, string> = { earn: '⭐ Suman', penalty: '⚠️ Restan', reward: '🎁 Recompensas' }
 const tabs = [
   ['children', '🧒', 'Niños'],
-  ['items', '📋', 'Tareas'],
+  ['items', '⭐', 'Puntos'],
   ['members', '👨‍👩‍👧', 'Miembros'],
   ['code', '🔑', 'Código'],
 ] as const
@@ -71,7 +71,7 @@ export function ParentPanel({ data, userId, reload, route }: Props) {
   } else if (tab === 'items') {
     page = (
       <section className="card">
-        <Head title="📋 Tareas, faltas y recompensas" add={`${ITEMS}/new`} label="Añadir tarea" />
+        <Head title="⭐ Puntos" add={`${ITEMS}/new`} label="Añadir a la lista de puntos" />
         {(['earn', 'penalty', 'reward'] as Kind[]).map((kind) => (
           <div key={kind}>
             <h3>{kindLabel[kind]}</h3>
@@ -190,7 +190,7 @@ function ItemForm({ item, onSave }: { item?: Item; onSave: (item: ItemFields) =>
 
   return (
     <form onSubmit={submit} className="card">
-      <h2>{item ? `Editar «${item.name}»` : 'Añadir tarea, falta o recompensa'}</h2>
+      <h2>{item ? `Editar «${item.name}»` : 'Añadir a la lista de puntos'}</h2>
       <div className="inline">
         <select name="kind" aria-label="Tipo" defaultValue={item?.kind}>
           <option value="earn">Suma</option>

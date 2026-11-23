@@ -162,13 +162,13 @@ test('admin approves a family, parent sets it up, kid earns points and redeems a
   })
 
   await test.step('parent adds tasks, penalties and rewards', async () => {
-    await parent.getByRole('link', { name: 'Tareas', exact: true }).click()
+    await parent.getByRole('link', { name: 'Puntos', exact: true }).click()
     const items = [
       ['earn', '📚', 'Hacer los deberes', 10], ['earn', '🧹', 'Recoger la habitación', 5],
       ['penalty', '😠', 'Gritar', 5], ['reward', '📺', 'Ver la TV', 15], ['reward', '🎬', 'Ir al cine', 50],
     ] as const
     for (const [kind, icon, name, points] of items) {
-      await parent.getByRole('link', { name: 'Añadir tarea' }).click()
+      await parent.getByRole('link', { name: 'Añadir a la lista de puntos' }).click()
       const form = parent.locator('form')
       await form.getByLabel('Tipo').selectOption(kind)
       await form.getByRole('radio', { name: icon }).click()
@@ -372,7 +372,7 @@ test('admin approves a family, parent sets it up, kid earns points and redeems a
 
   await test.step('phone parent tabs: all four in view, no sideways scroll; members fit too', async () => {
     const tabs = parent.getByRole('navigation', { name: 'Menú de padres' })
-    for (const name of ['Niños', 'Tareas', 'Miembros', 'Código']) {
+    for (const name of ['Niños', 'Puntos', 'Miembros', 'Código']) {
       await expect(tabs.getByRole('link', { name, exact: true }), `${name} fully on screen`).toBeInViewport({ ratio: 1 })
     }
     expect(await tabs.evaluate((e) => e.scrollWidth <= e.clientWidth), 'tabs do not scroll').toBe(true)
@@ -380,6 +380,11 @@ test('admin approves a family, parent sets it up, kid earns points and redeems a
     await tabs.getByRole('link', { name: 'Miembros', exact: true }).click()
     await expect(tabs.getByRole('link', { name: 'Miembros', exact: true })).toHaveAttribute('aria-current', 'page')
     await expectNoHorizontalScroll(parent)
+    for (const [tab, add] of [['Niños', 'Añadir niño'], ['Puntos', 'Añadir a la lista de puntos']]) {
+      await tabs.getByRole('link', { name: tab, exact: true }).click()
+      const box = (await parent.getByRole('link', { name: add }).boundingBox())!
+      expect(box.width, `${tab}: + button is round`).toBe(box.height)
+    }
     await tabs.getByRole('link', { name: 'Niños', exact: true }).click()
   })
 
