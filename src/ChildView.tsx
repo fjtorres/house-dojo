@@ -3,18 +3,17 @@ import { supabase } from './lib/supabase'
 import { useConfirm } from './useConfirm'
 import { itemValue, signed, txStatusLabel, type Child, type FamilyData, type Item, type Kind, type Tx } from './useFamily'
 import { TransactionDetail } from './TransactionDetail'
+import { useLang, useT } from './i18n'
 
 // txId: movement whose detail is open (#/child/<id>/tx/<txId>)
 type Props = { child: Child; data: FamilyData; isParent: boolean; reload: () => void; txId?: string }
 
-const sections: { kind: Kind; title: string; parentsOnly?: boolean }[] = [
-  { kind: 'earn', title: '⭐ Ganar puntos' },
-  { kind: 'reward', title: '🎁 Recompensas' },
-  { kind: 'penalty', title: '⚠️ Restar puntos', parentsOnly: true },
-]
+const sections: { kind: Kind; parentsOnly?: boolean }[] = [{ kind: 'earn' }, { kind: 'reward' }, { kind: 'penalty', parentsOnly: true }]
 const defaultIcon: Record<Kind, string> = { earn: '⭐', reward: '🎁', penalty: '⚠️' }
 
 export function ChildView({ child, data, isParent, reload, txId }: Props) {
+  const t = useT()
+  const lang = useLang()
   const points = data.balances[child.id] ?? 0
   const [toast, setToast] = useState<{ text: string; kind: Kind }>()
   const [confirm, confirmDialog] = useConfirm()
@@ -37,10 +36,10 @@ export function ChildView({ child, data, isParent, reload, txId }: Props) {
       points: 0, // the database sets the real value from the item
       status: isParent ? 'approved' : 'pending',
     })
-    if (error) return setToast({ text: 'No se pudo guardar 😕', kind: 'penalty' })
+    if (error) return setToast({ text: t.errors.saveFailed, kind: 'penalty' })
     const kind = item.kind as Kind
     setToast({
-      text: isParent ? `${item.icon || defaultIcon[kind]} ${signed(itemValue(item))}` : '¡Enviado! Papá o mamá lo tienen que aprobar 👍',
+      text: isParent ? `${item.icon || defaultIcon[kind]} ${signed(itemValue(item))}` : t.child.sent,
       kind,
     })
     reload()
@@ -50,9 +49,9 @@ export function ChildView({ child, data, isParent, reload, txId }: Props) {
     if (status === 'rejected' && tx.status === 'approved') {
       const ok = await confirm({
         icon: '↩️',
-        title: '¿Anular este movimiento?',
-        message: `«${tx.items?.name}» (${signed(tx.points)}) dejará de contar en los puntos de ${child.name}.`,
-        confirmLabel: 'Anular',
+        title: t.child.undoTitle,
+        message: t.child.undoMessage(tx.items?.name ?? '', signed(tx.points), child.name),
+        confirmLabel: t.child.undo,
         danger: true,
       })
       if (!ok) return
@@ -76,7 +75,7 @@ export function ChildView({ child, data, isParent, reload, txId }: Props) {
           if (items.length === 0) return null
           return (
             <section key={s.kind}>
-              <h3>{s.title}</h3>
+              <h3>{t.child.sections[s.kind]}</h3>
               <div className="items">
                 {items.map((item) => {
                   const tooExpensive = item.kind === 'reward' && item.points > available
@@ -85,7 +84,7 @@ export function ChildView({ child, data, isParent, reload, txId }: Props) {
                       <span className="item-icon">{item.icon || defaultIcon[s.kind]}</span>
                       <span className="item-name">{item.name}</span>
                       <span className="item-points">{signed(itemValue(item))}</span>
-                      {tooExpensive && <span className="item-hint">te faltan {item.points - available}</span>}
+                      {tooExpensive && <span className="item-hint">{t.child.missing(item.points - available)}</span>}
                     </button>
                   )
                 })}
@@ -95,32 +94,32 @@ export function ChildView({ child, data, isParent, reload, txId }: Props) {
         })}
 
       <section>
-        <h3>📜 Historial</h3>
-        {history.length === 0 && <p>Todavía no hay nada. ¡A por los primeros puntos!</p>}
+        <h3>{t.child.history}</h3>
+        {history.length === 0 && <p>{t.child.historyEmpty}</p>}
         <ul className="history">
-          {history.map((t) => (
-            <li key={t.id} className={t.status}>
-              <a className="tx-link" href={`#/child/${child.id}/tx/${t.id}`}>
-                <span className="item-icon">{t.items?.icon || defaultIcon[(t.items?.kind as Kind) ?? 'earn']}</span>
+          {history.map((tx) => (
+            <li key={tx.id} className={tx.status}>
+              <a className="tx-link" href={`#/child/${child.id}/tx/${tx.id}`}>
+                <span className="item-icon">{tx.items?.icon || defaultIcon[(tx.items?.kind as Kind) ?? 'earn']}</span>
                 <span className="grow">
-                  {t.items?.name}
-                  <small>{new Date(t.created_at).toLocaleString('es', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</small>
+                  {tx.items?.name}
+                  <small>{new Date(tx.created_at).toLocaleString(lang, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</small>
                 </span>
               </a>
-              <b className={t.points >= 0 ? 'plus' : 'minus'}>{signed(t.points)}</b>
-              {t.status === 'pending' &&
+              <b className={tx.points >= 0 ? 'plus' : 'minus'}>{signed(tx.points)}</b>
+              {tx.status === 'pending' &&
                 (isParent ? (
                   <span className="actions">
-                    <button className="ok" aria-label="Aprobar" onClick={() => setStatus(t, 'approved')}>✓</button>
-                    <button className="ko" aria-label="Rechazar" onClick={() => setStatus(t, 'rejected')}>✗</button>
+                    <button className="ok" aria-label={t.child.approve} onClick={() => setStatus(tx, 'approved')}>✓</button>
+                    <button className="ko" aria-label={t.child.reject} onClick={() => setStatus(tx, 'rejected')}>✗</button>
                   </span>
                 ) : (
-                  <span className="tag">por aprobar</span>
+                  <span className="tag">{t.txStatus.pending}</span>
                 ))}
-              {t.status === 'approved' && isParent && (
-                <button className="link" aria-label="Anular" onClick={() => setStatus(t, 'rejected')}>↩</button>
+              {tx.status === 'approved' && isParent && (
+                <button className="link" aria-label={t.child.undo} onClick={() => setStatus(tx, 'rejected')}>↩</button>
               )}
-              {t.status === 'rejected' && <span className="tag">{txStatusLabel(t)}</span>}
+              {tx.status === 'rejected' && <span className="tag">{txStatusLabel(tx, t)}</span>}
             </li>
           ))}
         </ul>
@@ -129,7 +128,7 @@ export function ChildView({ child, data, isParent, reload, txId }: Props) {
       {toast && <div className={`toast ${toast.kind}`} role="status">{toast.text}</div>}
       {confirmDialog}
       {detail && (
-        // closing goes back in history, so Escape, Cerrar and the browser's back button all agree
+        // closing goes back in history, so Escape, Close and the browser's back button all agree
         <TransactionDetail tx={detail} isParent={isParent} defaultIcon={defaultIcon[(detail.items?.kind as Kind) ?? 'earn']} onClose={() => window.history.back()} />
       )}
     </div>

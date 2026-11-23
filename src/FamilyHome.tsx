@@ -6,33 +6,37 @@ import { ParentPanel } from './ParentPanel'
 import { go, useRoute } from './router'
 import { Carousel } from './Carousel'
 import { TopMenu } from './TopMenu'
+import { useT } from './i18n'
+import { LanguagePicker } from './LanguagePicker'
 
 type Props = { familyId: string; userId: string; isAdmin: boolean }
 
 export function FamilyHome({ familyId, userId, isAdmin }: Props) {
   const { data, error, reload } = useFamily(familyId)
   const route = useRoute()
+  const t = useT()
   const [section, ...rest] = route
   const signOut = () => supabase.auth.signOut()
 
   if (error) {
     return (
       <main className="page narrow">
-        <p className="error">No se pudo cargar la familia: {error}</p>
-        <button className="link" onClick={signOut}>Salir</button>
+        <p className="error">{t.errors.loadFamily(error)}</p>
+        <button className="link" onClick={signOut}>{t.common.signOut}</button>
       </main>
     )
   }
-  if (!data) return <p className="center">Cargando…</p>
+  if (!data) return <p className="center">{t.common.loading}</p>
 
   const isParent = data.members.some((m) => m.user_id === userId && m.role === 'parent')
   const child = section === 'child' ? data.children.find((c) => c.id === rest[0]) : undefined
   const name = data.family.name
   const options = (
     <>
-      {isAdmin && <a className="button" href="#/admin" aria-label="Administración" title="Administración">🛡️</a>}
-      {isParent && section !== 'parents' && <a className="button" href="#/parents">⚙️ Padres</a>}
-      <button className="link" onClick={signOut}>Salir</button>
+      {isAdmin && <a className="button" href="#/admin" aria-label={t.common.admin} title={t.common.admin}>🛡️</a>}
+      {isParent && section !== 'parents' && <a className="button" href="#/parents">{t.common.parents}</a>}
+      <LanguagePicker />
+      <button className="link" onClick={signOut}>{t.common.signOut}</button>
     </>
   )
 
@@ -42,7 +46,7 @@ export function FamilyHome({ familyId, userId, isAdmin }: Props) {
         {route.length === 0 ? (
           <h1 className="logo" title={name}>🥋 {name}</h1>
         ) : (
-          <a className="button" href="#/">← Volver</a>
+          <a className="button" href="#/">{t.common.back}</a>
         )}
         {/* the same options: buttons on a wide screen, the ⋮ menu on a phone (see index.css) */}
         <nav className="wide-only">{options}</nav>
@@ -56,7 +60,7 @@ export function FamilyHome({ familyId, userId, isAdmin }: Props) {
         <ParentPanel key={route.join('/')} route={rest} data={data} userId={userId} reload={reload} />
       ) : (
         <>
-          <Carousel label="Niños">
+          <Carousel label={t.home.kids}>
             {data.children.map((c) => {
               const pending = data.txs.filter((t) => t.child_id === c.id && t.status === 'pending').length
               return (
@@ -64,13 +68,13 @@ export function FamilyHome({ familyId, userId, isAdmin }: Props) {
                   <span className="avatar">{c.avatar || '🙂'}</span>
                   <span className="kid-name">{c.name}</span>
                   <span className="kid-points">{data.balances[c.id] ?? 0} ⭐</span>
-                  {pending > 0 && <span className="badge">{pending} por aprobar</span>}
+                  {pending > 0 && <span className="badge">{t.home.toApprove(pending)}</span>}
                 </button>
               )
             })}
           </Carousel>
           {data.children.length === 0 && (
-            <p className="center">{isParent ? 'Añade a los niños en ⚙️ Padres.' : 'Todavía no hay niños en esta familia.'}</p>
+            <p className="center">{isParent ? t.home.emptyParent : t.home.emptyKid}</p>
           )}
         </>
       )}

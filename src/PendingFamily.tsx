@@ -1,9 +1,12 @@
 import { useEffect } from 'react'
 import { supabase } from './lib/supabase'
+import { useT } from './i18n'
+import { LanguagePicker } from './LanguagePicker'
 
 type Props = { familyId: string; name: string; onChange: () => void }
 
 export function PendingFamily({ familyId, name, onChange }: Props) {
+  const t = useT()
   // the admin's decision arrives over Realtime, so the screen moves on by itself
   useEffect(() => {
     const channel = supabase
@@ -21,10 +24,11 @@ export function PendingFamily({ familyId, name, onChange }: Props) {
       <h1 className="logo">🥋 House Dojo</h1>
       <section className="card notice">
         <div className="notice-icon" aria-hidden>⏳</div>
-        <h2>«{name}» está pendiente de aprobación</h2>
-        <p>Un administrador tiene que aceptar la familia. Esta pantalla cambiará sola en cuanto lo haga.</p>
+        <h2>{t.pending.title(name)}</h2>
+        <p>{t.pending.help}</p>
       </section>
-      <button className="link" onClick={() => supabase.auth.signOut()}>Salir</button>
+      <button className="link" onClick={() => supabase.auth.signOut()}>{t.common.signOut}</button>
+      <LanguagePicker />
     </main>
   )
 }

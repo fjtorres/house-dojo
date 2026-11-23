@@ -1,10 +1,12 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useT } from './i18n'
 
 type Props = { label: string; children: ReactNode }
 
 // On a phone, a row to swipe (native scroll + snap) or move with the arrows; on a wide screen, a grid (see index.css).
 // The arrows show only when something doesn't fit, so the grid never gets them.
 export function Carousel({ label, children }: Props) {
+  const t = useT()
   const track = useRef<HTMLDivElement>(null)
   const [canPrev, setCanPrev] = useState(false)
   const [canNext, setCanNext] = useState(false)
@@ -48,10 +50,10 @@ export function Carousel({ label, children }: Props) {
   const arrows = canPrev || canNext
 
   return (
-    <div className="carousel" role="group" aria-roledescription="carrusel" aria-label={label}>
-      {arrows && <button className="carousel-arrow prev" aria-label="Anterior" disabled={!canPrev} onClick={() => scroll(-1)}>‹</button>}
+    <div className="carousel" role="group" aria-roledescription={t.carousel.role} aria-label={label}>
+      {arrows && <button className="carousel-arrow prev" aria-label={t.carousel.prev} disabled={!canPrev} onClick={() => scroll(-1)}>‹</button>}
       <div className="carousel-track" ref={track}>{children}</div>
-      {arrows && <button className="carousel-arrow next" aria-label="Siguiente" disabled={!canNext} onClick={() => scroll(1)}>›</button>}
+      {arrows && <button className="carousel-arrow next" aria-label={t.carousel.next} disabled={!canNext} onClick={() => scroll(1)}>›</button>}
     </div>
   )
 }

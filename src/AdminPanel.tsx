@@ -2,19 +2,20 @@ import { useCallback, useEffect, useState } from 'react'
 import { errorText, supabase } from './lib/supabase'
 import type { Database } from './lib/database.types'
 import { useConfirm } from './useConfirm'
+import { useLang, useT } from './i18n'
+import { LanguagePicker } from './LanguagePicker'
 
 type Family = Database['public']['Functions']['admin_families']['Returns'][number]
 type Status = 'pending' | 'approved' | 'rejected'
 
-const sections: { status: Status; title: string; empty?: string }[] = [
-  { status: 'pending', title: '⏳ Solicitudes pendientes', empty: 'No hay solicitudes pendientes.' },
-  { status: 'approved', title: '✅ Familias aprobadas', empty: 'Todavía no hay familias.' },
-  { status: 'rejected', title: '🚫 Rechazadas' },
-]
-const day = (iso: string) => new Date(iso).toLocaleDateString('es', { day: 'numeric', month: 'short', year: 'numeric' })
+const statuses: Status[] = ['pending', 'approved', 'rejected']
+const day = (iso: string, lang: string) => new Date(iso).toLocaleDateString(lang, { day: 'numeric', month: 'short', year: 'numeric' })
 
 // Access is enforced in the admin_* database functions; this screen only calls them.
 export function AdminPanel() {
+  const t = useT()
+  const lang = useLang()
+  const empty: Partial<Record<Status, string>> = { pending: t.admin.emptyPending, approved: t.admin.emptyApproved }
   const [families, setFamilies] = useState<Family[]>()
   const [error, setError] = useState('')
   const [confirm, confirmDialog] = useConfirm()
@@ -40,9 +41,9 @@ export function AdminPanel() {
   async function remove(f: Family) {
     const ok = await confirm({
       icon: '🗑️',
-      title: `¿Borrar la familia «${f.name}»?`,
-      message: `Se borrarán sus ${f.kids} niños, ${f.movements} movimientos, su lista de puntos y sus miembros. No se puede deshacer.`,
-      confirmLabel: 'Borrar familia',
+      title: t.admin.deleteTitle(f.name),
+      message: t.admin.deleteMessage(f.kids, f.movements),
+      confirmLabel: t.admin.deleteFamily,
       danger: true,
     })
     if (ok) run(supabase.rpc('admin_delete_family', { fid: f.id }))
@@ -51,17 +52,17 @@ export function AdminPanel() {
   return (
     <main className="page admin">
       <header className="topbar">
-        <a className="button" href="#/">← Volver</a>
-        <h1 className="logo">🛡️ Administración</h1>
+        <a className="button" href="#/">{t.common.back}</a>
+        <h1 className="logo">{t.admin.title}</h1>
       </header>
-      {!families && <p className="center">Cargando…</p>}
-      {families && sections.map(({ status, title, empty }) => {
+      {!families && <p className="center">{t.common.loading}</p>}
+      {families && statuses.map((status) => {
         const list = families.filter((f) => f.status === status)
-        if (!list.length && !empty) return null
+        if (!list.length && !empty[status]) return null
         return (
           <section key={status} className="card">
-            <h2>{title}</h2>
-            {!list.length && <p>{empty}</p>}
+            <h2>{t.admin.sections[status]}</h2>
+            {!list.length && <p>{empty[status]}</p>}
             <ul className="rows">
               {list.map((f) => (
                 <li key={f.id}>
@@ -69,13 +70,13 @@ export function AdminPanel() {
                     <b>{f.name}</b>
                     <small>
                       {status === 'approved'
-                        ? `${f.parents} padres · ${f.kids} niños · ${f.movements} movimientos`
-                        : `${f.email ?? 'usuario borrado'} · ${day(f.created_at)}`}
+                        ? t.admin.stats(f.parents, f.kids, f.movements)
+                        : `${f.email ?? t.admin.deletedUser} · ${day(f.created_at, lang)}`}
                     </small>
                   </span>
-                  {status !== 'approved' && <button className="primary" onClick={() => setStatus(f, 'approved')}>✓ Aprobar</button>}
-                  {status === 'pending' && <button className="link danger" onClick={() => setStatus(f, 'rejected')}>✗ Rechazar</button>}
-                  {status !== 'pending' && <button className="link danger" onClick={() => remove(f)}>Borrar</button>}
+                  {status !== 'approved' && <button className="primary" onClick={() => setStatus(f, 'approved')}>{t.admin.approve}</button>}
+                  {status === 'pending' && <button className="link danger" onClick={() => setStatus(f, 'rejected')}>{t.admin.reject}</button>}
+                  {status !== 'pending' && <button className="link danger" onClick={() => remove(f)}>{t.common.delete}</button>}
                 </li>
               ))}
             </ul>
@@ -84,6 +85,7 @@ export function AdminPanel() {
       })}
       {error && <p className="error">{error}</p>}
       {confirmDialog}
+      <LanguagePicker />
     </main>
   )
 }

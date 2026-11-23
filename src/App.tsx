@@ -7,6 +7,7 @@ import { FamilyHome } from './FamilyHome'
 import { PendingFamily } from './PendingFamily'
 import { AdminPanel } from './AdminPanel'
 import { useRoute } from './router'
+import { useT } from './i18n'
 
 type Membership = { family_id: string; families: { name: string; status: string } | null }
 const rank = (m: Membership) => ['approved', 'pending', 'rejected'].indexOf(m.families!.status)
@@ -16,6 +17,7 @@ export default function App() {
   const [family, setFamily] = useState<Membership | null>()
   const [isAdmin, setIsAdmin] = useState(false)
   const route = useRoute()
+  const t = useT()
   const userId = session?.user.id
 
   useEffect(() => {
@@ -38,10 +40,10 @@ export default function App() {
     supabase.rpc('is_admin').then(({ data }) => setIsAdmin(!!data))
   }, [userId, loadFamily])
 
-  if (session === undefined) return <p className="center">Cargando…</p>
+  if (session === undefined) return <p className="center">{t.common.loading}</p>
   if (!session) return <Login />
   if (route[0] === 'admin' && isAdmin) return <AdminPanel />
-  if (family === undefined) return <p className="center">Cargando…</p>
+  if (family === undefined) return <p className="center">{t.common.loading}</p>
 
   const status = family?.families?.status
   if (family && status === 'pending') {

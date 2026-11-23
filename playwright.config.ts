@@ -6,6 +6,7 @@ export default defineConfig({
   timeout: 90_000,
   retries: process.env.CI ? 1 : 0,
   reporter: process.env.CI ? [['github'], ['list']] : 'list',
-  use: { trace: 'retain-on-failure', screenshot: 'only-on-failure' },
+  // the app picks its language from the browser; the specs are written against the Spanish texts
+  use: { locale: 'es-ES', trace: 'retain-on-failure', screenshot: 'only-on-failure' },
   webServer: { command: 'npm run dev', url: 'http://127.0.0.1:5173/', reuseExistingServer: !process.env.CI },
 })
