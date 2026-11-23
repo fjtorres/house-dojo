@@ -130,7 +130,7 @@ test('admin approves a family, parent sets it up, kid earns points and redeems a
   })
 
   await test.step('parent adds tasks, penalties and rewards', async () => {
-    await parent.getByRole('link', { name: '📋 Tareas' }).click()
+    await parent.getByRole('link', { name: 'Tareas', exact: true }).click()
     const items = [
       ['earn', '📚', 'Hacer los deberes', 10], ['earn', '🧹', 'Recoger la habitación', 5],
       ['penalty', '😠', 'Gritar', 5], ['reward', '📺', 'Ver la TV', 15], ['reward', '🎬', 'Ir al cine', 50],
@@ -161,7 +161,7 @@ test('admin approves a family, parent sets it up, kid earns points and redeems a
   })
 
   await test.step('parent edits a child; browser back returns to the edit page', async () => {
-    await parent.getByRole('link', { name: '🧒 Niños' }).click()
+    await parent.getByRole('link', { name: 'Niños', exact: true }).click()
     await parent.locator('.rows li', { hasText: 'Ana' }).getByRole('link', { name: 'Editar' }).click()
     const form = parent.locator('form')
     await expect(form.getByRole('radio', { name: '🦊' })).toHaveAttribute('aria-checked', 'true')
@@ -174,7 +174,7 @@ test('admin approves a family, parent sets it up, kid earns points and redeems a
   })
 
   const code = await test.step('parent reads the invite code', async () => {
-    await parent.getByRole('link', { name: '🔑 Código' }).click()
+    await parent.getByRole('link', { name: 'Código', exact: true }).click()
     return (await parent.locator('.code').textContent())!.trim()
   })
 
@@ -335,6 +335,19 @@ test('admin approves a family, parent sets it up, kid earns points and redeems a
     await padres.click()
     await expect(parent).toHaveURL(/#\/parents/)
     await expect(parent.getByRole('button', { name: 'Salir' }), 'menu closes after choosing').toBeHidden()
+  })
+
+  await test.step('phone parent tabs: all four in view, no sideways scroll; members fit too', async () => {
+    const tabs = parent.getByRole('navigation', { name: 'Menú de padres' })
+    for (const name of ['Niños', 'Tareas', 'Miembros', 'Código']) {
+      await expect(tabs.getByRole('link', { name, exact: true }), `${name} fully on screen`).toBeInViewport({ ratio: 1 })
+    }
+    expect(await tabs.evaluate((e) => e.scrollWidth <= e.clientWidth), 'tabs do not scroll').toBe(true)
+    await expect(tabs.getByRole('link', { name: 'Niños', exact: true })).toHaveAttribute('aria-current', 'page')
+    await tabs.getByRole('link', { name: 'Miembros', exact: true }).click()
+    await expect(tabs.getByRole('link', { name: 'Miembros', exact: true })).toHaveAttribute('aria-current', 'page')
+    await expectNoHorizontalScroll(parent)
+    await tabs.getByRole('link', { name: 'Niños', exact: true }).click()
   })
 
   await test.step('parent deletes a child after confirming in the dialog', async () => {
