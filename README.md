@@ -64,3 +64,10 @@ Para quitar el rol: `delete from public.admins where user_id = '<uuid>';`
 - Lo que marca un niño queda *por aprobar*; lo que marca un padre cuenta al momento y se puede anular.
 - Cada movimiento guarda quién lo propuso, aprobó, rechazó o anuló y cuándo (`transaction_events`, escrito
   solo por un trigger). Se ve pulsando el movimiento en el historial; los niños ven «papá o mamá» en vez del email.
+
+## Idiomas
+
+La app está en español e inglés. Usa el idioma del navegador (si no lo tiene, español) y recuerda el que se
+elija en el selector 🌐 (pantalla de entrada o menú). Los textos están en `src/i18n/`; para añadir un idioma,
+copia `en.tsx`, tradúcelo (TypeScript avisa de cualquier texto que falte) y añádelo a `languages` en
+`src/i18n/index.ts`.

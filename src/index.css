@@ -72,6 +72,9 @@ label { display: grid; gap: 4px; font-weight: 600; }
 }
 .menu > :is(a, button):hover { background: var(--bg); }
 .menu > a[aria-label]::after { content: ' ' attr(aria-label); }
+/* language picker: centred under the page on login/onboarding/admin, a row of its own in the ⋮ menu */
+main > .language { display: block; margin: 16px auto 0; }
+.menu > .language { margin: 4px 8px; }
 @media (min-width: 700px) { .narrow-only { display: none !important; } }
 @media (max-width: 699.98px) {
   .wide-only { display: none !important; }

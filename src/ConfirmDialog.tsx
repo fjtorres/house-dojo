@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 import { Modal } from './Modal'
+import { useT } from './i18n'
 
 export type ConfirmOptions = {
   title: string
@@ -11,7 +12,8 @@ export type ConfirmOptions = {
 }
 
 // Confirmation modal; use it through useConfirm().
-export function ConfirmDialog({ title, message, icon, confirmLabel = 'Sí', cancelLabel = 'Cancelar', danger, onClose }: ConfirmOptions & { onClose: (ok: boolean) => void }) {
+export function ConfirmDialog({ title, message, icon, confirmLabel, cancelLabel, danger, onClose }: ConfirmOptions & { onClose: (ok: boolean) => void }) {
+  const t = useT()
   return (
     <Modal labelledBy="confirm-title" onClose={() => onClose(false)}>
       {icon && <div className="confirm-icon" aria-hidden>{icon}</div>}
@@ -19,8 +21,8 @@ export function ConfirmDialog({ title, message, icon, confirmLabel = 'Sí', canc
       {message && <p>{message}</p>}
       <div className="confirm-actions">
         {/* first button gets the focus: the safe choice */}
-        <button onClick={() => onClose(false)}>{cancelLabel}</button>
-        <button className={danger ? 'danger-fill' : 'primary'} onClick={() => onClose(true)}>{confirmLabel}</button>
+        <button onClick={() => onClose(false)}>{cancelLabel ?? t.common.cancel}</button>
+        <button className={danger ? 'danger-fill' : 'primary'} onClick={() => onClose(true)}>{confirmLabel ?? t.common.yes}</button>
       </div>
     </Modal>
   )

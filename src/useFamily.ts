@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { supabase } from './lib/supabase'
 import type { Tables } from './lib/database.types'
+import type { Messages } from './i18n/es'
 
 export type Kind = 'earn' | 'penalty' | 'reward'
 export type Child = Tables<'children'>
@@ -72,7 +73,7 @@ export const signed = (n: number) => (n > 0 ? `+${n}` : `${n}`)
 export const itemValue = (item: Pick<Item, 'kind' | 'points'>) => (item.kind === 'earn' ? item.points : -item.points)
 
 // A rejected movement was either turned down while pending or undone after approval.
-export const txStatusLabel = (tx: Tx) =>
-  tx.status === 'pending' ? 'por aprobar'
-    : tx.status === 'approved' ? 'aprobado'
-      : tx.transaction_events.some((e) => e.action === 'undone') ? 'anulado' : 'rechazado'
+export const txStatusLabel = (tx: Tx, t: Messages) =>
+  tx.status === 'pending' ? t.txStatus.pending
+    : tx.status === 'approved' ? t.txStatus.approved
+      : tx.transaction_events.some((e) => e.action === 'undone') ? t.txStatus.undone : t.txStatus.rejected

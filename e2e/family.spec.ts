@@ -65,6 +65,7 @@ let run = ''
 const tablets: string[] = []
 test.afterEach(async () => {
   if (run) await cleanUp(run, tablets.splice(0))
+  run = ''
 })
 
 // Lists what sticks out when the page scrolls sideways, so a failure says which element to fix.
@@ -388,6 +389,19 @@ test('admin approves a family, parent sets it up, kid earns points and redeems a
     await tabs.getByRole('link', { name: 'Niños', exact: true }).click()
   })
 
+  await test.step('parent switches to English from the ⋮ menu, and back', async () => {
+    await parent.getByRole('button', { name: 'Menú' }).click()
+    await parent.getByRole('combobox', { name: 'Idioma' }).selectOption('en')
+    const tabs = parent.getByRole('navigation', { name: 'Parents menu' })
+    for (const name of ['Kids', 'Points', 'Members', 'Code']) await expect(tabs.getByRole('link', { name, exact: true })).toBeVisible()
+    await expect(parent.getByRole('heading', { name: '🧒 Kids' })).toBeVisible()
+    await expect(parent.locator('html')).toHaveAttribute('lang', 'en')
+    await parent.getByRole('combobox', { name: 'Language' }).selectOption('es')
+    await expect(tabs).toBeHidden()
+    await expect(parent.getByRole('navigation', { name: 'Menú de padres' })).toBeVisible()
+    await parent.keyboard.press('Escape')
+  })
+
   await test.step('parent deletes a child after confirming in the dialog', async () => {
     const remove = parent.locator('.rows li', { hasText: 'Ana María' }).getByRole('button', { name: 'Borrar' })
     const dialog = parent.getByRole('dialog', { name: '¿Borrar a Ana María?' })
@@ -418,4 +432,20 @@ test('admin approves a family, parent sets it up, kid earns points and redeems a
     await admin.getByRole('dialog', { name: `¿Borrar la familia «${family}»?` }).getByRole('button', { name: 'Borrar familia' }).click()
     await expect(row).toHaveCount(0)
   })
+})
+
+test('the app speaks the browser\'s language, and remembers the one picked', async ({ browser }) => {
+  const page = await (await browser.newContext({ locale: 'en-US' })).newPage()
+  await page.goto(APP)
+  await expect(page.getByRole('button', { name: 'Send me a link' })).toBeVisible()
+  await expect(page.locator('html')).toHaveAttribute('lang', 'en')
+  await page.getByRole('combobox', { name: 'Language' }).selectOption('es')
+  await expect(page.getByRole('button', { name: 'Enviarme un enlace' })).toBeVisible()
+  await page.reload()
+  await expect(page.getByRole('button', { name: 'Enviarme un enlace' }), 'the choice beats the browser').toBeVisible()
+  await expect(page.locator('html')).toHaveAttribute('lang', 'es')
+
+  const other = await (await browser.newContext({ locale: 'fr-FR' })).newPage()
+  await other.goto(APP)
+  await expect(other.getByRole('button', { name: 'Enviarme un enlace' }), 'a language we lack falls back to Spanish').toBeVisible()
 })

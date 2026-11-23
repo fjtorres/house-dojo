@@ -1,5 +1,7 @@
 import { useState, type FormEvent } from 'react'
 import { errorText, supabase } from './lib/supabase'
+import { useT } from './i18n'
+import { LanguagePicker } from './LanguagePicker'
 
 // rejected: name of the user's family request an admin turned down, if any
 type Props = { anonymous: boolean; isAdmin: boolean; rejected?: string; onJoined: () => void }
@@ -7,6 +9,7 @@ type Props = { anonymous: boolean; isAdmin: boolean; rejected?: string; onJoined
 export function Onboarding({ anonymous, isAdmin, rejected, onJoined }: Props) {
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
+  const t = useT()
 
   async function submit(e: FormEvent<HTMLFormElement>, call: (f: FormData) => PromiseLike<{ data: string | null; error: { message: string } | null }>) {
     e.preventDefault()
@@ -28,41 +31,42 @@ export function Onboarding({ anonymous, isAdmin, rejected, onJoined }: Props) {
       {rejected && (
         <section className="card notice">
           <div className="notice-icon" aria-hidden>🚫</div>
-          <h2>No se aceptó «{rejected}»</h2>
-          <p>Puedes pedir otra familia o unirte a una con su código.</p>
+          <h2>{t.onboarding.rejected(rejected)}</h2>
+          <p>{t.onboarding.rejectedHelp}</p>
         </section>
       )}
       {!anonymous && (
         <section className="card">
-          <h2>Crear una familia</h2>
-          <p>Un administrador la revisará antes de que podáis usarla.</p>
+          <h2>{t.onboarding.createTitle}</h2>
+          <p>{t.onboarding.createHelp}</p>
           <form onSubmit={create} className="stack">
             <label>
-              Nombre de la familia
-              <input name="family" required maxLength={40} placeholder="Los García" />
+              {t.onboarding.familyName}
+              <input name="family" required maxLength={40} placeholder={t.onboarding.familyPlaceholder} />
             </label>
-            <button className="primary" disabled={busy}>Crear</button>
+            <button className="primary" disabled={busy}>{t.onboarding.create}</button>
           </form>
         </section>
       )}
       <section className="card">
-        <h2>Unirse con un código</h2>
-        <p>{anonymous ? 'Pide el código a papá o mamá (lo ven en ⚙️ Padres).' : 'Si otro adulto ya creó la familia, usa su código. Él te podrá hacer padre/madre.'}</p>
+        <h2>{t.onboarding.joinTitle}</h2>
+        <p>{anonymous ? t.onboarding.joinHelpKid : t.onboarding.joinHelpAdult}</p>
         <form onSubmit={join} className="stack">
           <label>
-            Código
+            {t.onboarding.code}
             <input name="code" required autoCapitalize="none" autoComplete="off" />
           </label>
           <label>
-            {anonymous ? 'Nombre de este dispositivo' : 'Tu nombre'}
-            <input name="name" maxLength={60} placeholder={anonymous ? 'Tablet del salón' : ''} />
+            {anonymous ? t.onboarding.deviceName : t.onboarding.yourName}
+            <input name="name" maxLength={60} placeholder={anonymous ? t.onboarding.devicePlaceholder : ''} />
           </label>
-          <button className="primary" disabled={busy}>Unirme</button>
+          <button className="primary" disabled={busy}>{t.onboarding.join}</button>
         </form>
       </section>
       {error && <p className="error">{error}</p>}
-      {isAdmin && <a className="button" href="#/admin">🛡️ Administración</a>}
-      <button className="link" onClick={() => supabase.auth.signOut()}>Salir</button>
+      {isAdmin && <a className="button" href="#/admin">🛡️ {t.common.admin}</a>}
+      <button className="link" onClick={() => supabase.auth.signOut()}>{t.common.signOut}</button>
+      <LanguagePicker />
     </main>
   )
 }
