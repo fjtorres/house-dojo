@@ -41,7 +41,7 @@ export function AdminPanel() {
     const ok = await confirm({
       icon: '🗑️',
       title: `¿Borrar la familia «${f.name}»?`,
-      message: `Se borrarán sus ${f.kids} niños, ${f.movements} movimientos, sus tareas y sus miembros. No se puede deshacer.`,
+      message: `Se borrarán sus ${f.kids} niños, ${f.movements} movimientos, su lista de puntos y sus miembros. No se puede deshacer.`,
       confirmLabel: 'Borrar familia',
       danger: true,
     })
