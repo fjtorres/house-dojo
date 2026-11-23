@@ -4,6 +4,7 @@ import { useFamily } from './useFamily'
 import { ChildView } from './ChildView'
 import { ParentPanel } from './ParentPanel'
 import { go, useRoute } from './router'
+import { Carousel } from './Carousel'
 
 type Props = { familyId: string; userId: string; isAdmin: boolean }
 
@@ -48,7 +49,7 @@ export function FamilyHome({ familyId, userId, isAdmin }: Props) {
         <ParentPanel key={route.join('/')} route={rest} data={data} userId={userId} reload={reload} />
       ) : (
         <>
-          <div className="kids">
+          <Carousel label="Niños">
             {data.children.map((c) => {
               const pending = data.txs.filter((t) => t.child_id === c.id && t.status === 'pending').length
               return (
@@ -60,7 +61,7 @@ export function FamilyHome({ familyId, userId, isAdmin }: Props) {
                 </button>
               )
             })}
-          </div>
+          </Carousel>
           {data.children.length === 0 && (
             <p className="center">{isParent ? 'Añade a los niños en ⚙️ Padres.' : 'Todavía no hay niños en esta familia.'}</p>
           )}

@@ -56,8 +56,29 @@ label { display: grid; gap: 4px; font-weight: 600; }
 /* long family names wrap instead of pushing the buttons off a phone screen */
 .topbar .logo { min-width: 0; overflow-wrap: anywhere; }
 
-/* Grid of children */
-.kids { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 16px; }
+/* Children: on a phone, one row that scrolls sideways */
+.carousel { position: relative; }
+.carousel-track {
+  display: flex; gap: 16px; overflow-x: auto; scroll-snap-type: x mandatory; overscroll-behavior-x: contain;
+  /* bleeds into the page's 16px gutter, so cards scroll out at the screen edge instead of being cut short */
+  padding: 6px 16px 14px; margin: -6px -16px 0; scroll-padding-inline: 16px; scrollbar-width: none;
+}
+.carousel-track::-webkit-scrollbar { display: none; }
+/* on a phone the next card peeks in, so it's clear there are more */
+.carousel-track > * { flex: 1 0 min(220px, 78%); max-width: 320px; scroll-snap-align: start; }
+.carousel-arrow {
+  position: absolute; top: 50%; z-index: 1; transform: translateY(-50%); width: 48px; height: 48px; padding: 0;
+  border-radius: 50%; font-size: 2rem; line-height: 1; font-weight: 900;
+}
+.carousel-arrow:active:not(:disabled) { transform: translateY(calc(-50% + 2px)); }
+.carousel-arrow:disabled { opacity: 0; pointer-events: none; }
+.carousel-arrow.prev { left: -8px; }
+.carousel-arrow.next { right: -8px; }
+/* wide screens have room for everyone: back to a grid that wraps, so nothing scrolls and no arrows show */
+@media (min-width: 700px) {
+  .carousel-track { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); margin: 0; padding: 0; overflow: visible; }
+  .carousel-track > * { max-width: none; }
+}
 .kid-card {
   display: grid; justify-items: center; gap: 6px; padding: 24px 16px;
   border-radius: 28px; background: var(--card); border-bottom: 8px solid var(--kid);
