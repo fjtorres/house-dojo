@@ -63,7 +63,7 @@ function collectErrors(page: Page, who: string, errors: string[]) {
 
 test('admin approves a family, parent sets it up, kid earns points and redeems a reward', async ({ browser }) => {
   const run = `${Date.now()}${Math.random().toString(36).slice(2, 6)}` // unique even when runs start in the same ms
-  // one long unbreakable word: the worst case for narrow screens
+  // one unbreakable word of 40 characters, the longest name allowed: the worst case for narrow screens
   const family = `LosSuperTestersDeLaCasa${run}`
   const parentEmail = `parent${run}@example.com`
   const parent = await (await browser.newContext({ viewport: { width: 1024, height: 900 } })).newPage()
@@ -316,12 +316,28 @@ test('admin approves a family, parent sets it up, kid earns points and redeems a
     await expect(kids.locator('.kid-card', { hasText: 'Daniel' })).toBeInViewport({ ratio: 0.9 })
   })
 
-  await test.step('no horizontal scroll at phone width', async () => {
+  await test.step('phone header: name on one line, options in the ⋮ menu', async () => {
     await expectNoHorizontalScroll(parent)
+    const logo = parent.getByRole('heading', { level: 1 })
+    await expect(logo).toHaveAttribute('title', family)
+    const lines = await logo.evaluate((e) => e.getBoundingClientRect().height / parseFloat(getComputedStyle(e).lineHeight))
+    expect(lines, 'family name stays on one line').toBeLessThan(1.5)
+    await expect(parent.getByRole('link', { name: '⚙️ Padres' }), 'options hidden behind ⋮').toBeHidden()
+
+    const menuButton = parent.getByRole('button', { name: 'Menú' })
+    await menuButton.click()
+    const padres = parent.getByRole('link', { name: '⚙️ Padres' })
+    await expect(padres).toBeVisible()
+    await expect(parent.getByText(family, { exact: true }), 'menu shows the whole name').toBeVisible()
+    await parent.keyboard.press('Escape')
+    await expect(padres).toBeHidden()
+    await menuButton.click()
+    await padres.click()
+    await expect(parent).toHaveURL(/#\/parents/)
+    await expect(parent.getByRole('button', { name: 'Salir' }), 'menu closes after choosing').toBeHidden()
   })
 
   await test.step('parent deletes a child after confirming in the dialog', async () => {
-    await parent.getByRole('link', { name: '⚙️ Padres' }).click()
     const remove = parent.locator('.rows li', { hasText: 'Ana María' }).getByRole('button', { name: 'Borrar' })
     const dialog = parent.getByRole('dialog', { name: '¿Borrar a Ana María?' })
     await remove.click()
@@ -331,6 +347,12 @@ test('admin approves a family, parent sets it up, kid earns points and redeems a
     await remove.click()
     await dialog.getByRole('button', { name: 'Borrar' }).click()
     await expect(parent.locator('.rows li', { hasText: 'Ana María' })).toHaveCount(0)
+  })
+
+  await test.step('parent signs out from the phone menu', async () => {
+    await parent.getByRole('button', { name: 'Menú' }).click()
+    await parent.getByRole('button', { name: 'Salir' }).click()
+    await expect(parent.getByRole('button', { name: 'Enviarme un enlace' })).toBeVisible()
   })
 
   expect(errors, 'no browser errors').toEqual([])

@@ -53,8 +53,30 @@ label { display: grid; gap: 4px; font-weight: 600; }
 
 .topbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 20px; }
 .topbar nav { display: flex; gap: 8px; align-items: center; flex: none; }
-/* long family names wrap instead of pushing the buttons off a phone screen */
-.topbar .logo { min-width: 0; overflow-wrap: anywhere; }
+/* one line: a name that doesn't fit ends in "…" (the ⋮ menu shows it whole) */
+.topbar .logo { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* Header options: buttons on a wide screen, a ⋮ menu on a phone */
+.menu-button { width: 48px; height: 48px; padding: 0; font-size: 1.6rem; font-weight: 900; line-height: 1; }
+.menu {
+  inset: auto; top: 72px; right: 16px; margin: 0; min-width: 220px; max-width: calc(100% - 32px);
+  padding: 8px; border: 0; border-radius: var(--radius); background: var(--card); color: var(--text);
+  box-shadow: 0 12px 32px rgba(43, 35, 64, 0.22);
+}
+.menu:popover-open { display: grid; gap: 4px; }
+.menu-title { margin: 4px 8px 4px; padding-bottom: 10px; border-bottom: 2px solid var(--line); font-weight: 800; overflow-wrap: anywhere; }
+/* plain rows, not buttons: beats a.button and .link, which come later in this file */
+.menu > :is(a, button).button, .menu > :is(a, button) {
+  display: block; width: 100%; text-align: left; padding: 12px; border-radius: 12px;
+  background: none; box-shadow: none; color: var(--text); text-decoration: none; font-weight: 600;
+}
+.menu > :is(a, button):hover { background: var(--bg); }
+.menu > a[aria-label]::after { content: ' ' attr(aria-label); }
+@media (min-width: 700px) { .narrow-only { display: none !important; } }
+@media (max-width: 699.98px) {
+  .wide-only { display: none !important; }
+  .topbar .logo { font-size: 1.25rem; }
+}
 
 /* Children: on a phone, one row that scrolls sideways */
 .carousel { position: relative; }

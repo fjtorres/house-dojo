@@ -5,6 +5,7 @@ import { ChildView } from './ChildView'
 import { ParentPanel } from './ParentPanel'
 import { go, useRoute } from './router'
 import { Carousel } from './Carousel'
+import { TopMenu } from './TopMenu'
 
 type Props = { familyId: string; userId: string; isAdmin: boolean }
 
@@ -26,20 +27,26 @@ export function FamilyHome({ familyId, userId, isAdmin }: Props) {
 
   const isParent = data.members.some((m) => m.user_id === userId && m.role === 'parent')
   const child = section === 'child' ? data.children.find((c) => c.id === rest[0]) : undefined
+  const name = data.family.name
+  const options = (
+    <>
+      {isAdmin && <a className="button" href="#/admin" aria-label="Administración" title="Administración">🛡️</a>}
+      {isParent && section !== 'parents' && <a className="button" href="#/parents">⚙️ Padres</a>}
+      <button className="link" onClick={signOut}>Salir</button>
+    </>
+  )
 
   return (
     <main className="page">
       <header className="topbar">
         {route.length === 0 ? (
-          <h1 className="logo">🥋 {data.family.name}</h1>
+          <h1 className="logo" title={name}>🥋 {name}</h1>
         ) : (
           <a className="button" href="#/">← Volver</a>
         )}
-        <nav>
-          {isAdmin && <a className="button" href="#/admin" aria-label="Administración" title="Administración">🛡️</a>}
-          {isParent && section !== 'parents' && <a className="button" href="#/parents">⚙️ Padres</a>}
-          <button className="link" onClick={signOut}>Salir</button>
-        </nav>
+        {/* the same options: buttons on a wide screen, the ⋮ menu on a phone (see index.css) */}
+        <nav className="wide-only">{options}</nav>
+        <nav className="narrow-only"><TopMenu title={name}>{options}</TopMenu></nav>
       </header>
 
       {child ? (

@@ -39,7 +39,7 @@ export function Onboarding({ anonymous, isAdmin, rejected, onJoined }: Props) {
           <form onSubmit={create} className="stack">
             <label>
               Nombre de la familia
-              <input name="family" required maxLength={80} placeholder="Los García" />
+              <input name="family" required maxLength={40} placeholder="Los García" />
             </label>
             <button className="primary" disabled={busy}>Crear</button>
           </form>
