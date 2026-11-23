@@ -439,6 +439,7 @@ test('the app speaks the browser\'s language, and remembers the one picked', asy
   await page.goto(APP)
   await expect(page.getByRole('button', { name: 'Send me a link' })).toBeVisible()
   await expect(page.locator('html')).toHaveAttribute('lang', 'en')
+  await expect(page.getByRole('combobox', { name: 'Language' }).getByRole('option')).toHaveText(['🇪🇸 Español', '🇬🇧 English'])
   await page.getByRole('combobox', { name: 'Language' }).selectOption('es')
   await expect(page.getByRole('button', { name: 'Enviarme un enlace' })).toBeVisible()
   await page.reload()
