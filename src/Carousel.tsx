@@ -12,6 +12,8 @@ export function Carousel({ label, children }: Props) {
   const [canNext, setCanNext] = useState(false)
   // where the arrows are taking the row: a quick second tap moves on from there, not from mid-animation
   const target = useRef<number | null>(null)
+  // where the row was when the last arrow scroll started
+  const start = useRef(0)
 
   useEffect(() => {
     const t = track.current!
@@ -22,8 +24,9 @@ export function Carousel({ label, children }: Props) {
     }
     update()
     t.addEventListener('scroll', update, { passive: true })
-    // a swipe can interrupt an arrow's scroll before it gets there
-    const settled = () => { target.current = null }
+    // a swipe can interrupt an arrow's scroll before it gets there. A busy browser can also deliver the
+    // previous scroll's scrollend after a new one started: that one fires where the new scroll set off, so skip it.
+    const settled = () => { if (Math.abs(t.scrollLeft - start.current) >= 1) target.current = null }
     t.addEventListener('scrollend', settled)
     // the track resizes with the window; its content changes when a child is added or removed
     const resize = new ResizeObserver(update)
@@ -44,6 +47,7 @@ export function Carousel({ label, children }: Props) {
     // the last cards can't reach the left edge: the row stops at its end
     const left = Math.min(stop, t.scrollWidth - t.clientWidth)
     target.current = left
+    start.current = t.scrollLeft
     const smooth = !matchMedia('(prefers-reduced-motion: reduce)').matches
     t.scrollTo({ left, behavior: smooth ? 'smooth' : 'auto' })
   }

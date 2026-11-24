@@ -411,6 +411,16 @@ test('admin approves a family, parent sets it up, kid earns points and redeems a
     await kids.locator('.carousel-track').evaluate((t) => t.scrollTo({ left: t.scrollWidth }))
     await expect(next).toBeDisabled()
     await expect(kids.locator('.kid-card', { hasText: 'Daniel' })).toBeInViewport({ ratio: 0.9 })
+
+    // a busy browser can deliver the previous scroll's scrollend after the next tap: it must not lose that tap's
+    // destination. Simulated: the late event arrives in the same task as the tap, before the row moves.
+    await kids.locator('.carousel-track').evaluate((t) => {
+      t.parentElement!.querySelector<HTMLButtonElement>('.carousel-arrow.prev')!.click()
+      t.dispatchEvent(new Event('scrollend'))
+    })
+    await prev.click()
+    await expect(kids.locator('.kid-card', { hasText: 'Bruno' }), 'two taps back from the end').toBeInViewport({ ratio: 0.9 })
+    await expect(kids.locator('.kid-card', { hasText: 'Carla' })).not.toBeInViewport({ ratio: 0.9 })
   })
 
   await test.step('phone header: name on one line, options in the ⋮ menu', async () => {
