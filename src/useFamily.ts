@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useEffect, useEffectEvent, useState } from 'react'
 import { supabase } from './lib/supabase'
 import type { Tables } from './lib/database.types'
 import type { Messages } from './i18n/es'
+import { useLatest } from './useLatest'
 
 export type Kind = 'earn' | 'penalty' | 'reward'
 export type Child = Tables<'children'>
@@ -22,49 +23,56 @@ export type FamilyData = {
   txs: Tx[]
 }
 
-// Loads the whole family and reloads on any change from any device (Supabase Realtime).
-export function useFamily(familyId: string) {
-  const [data, setData] = useState<FamilyData>()
-  const [error, setError] = useState('')
-
-  const reload = useCallback(async () => {
-    const [family, members, children, items, balances, txs] = await Promise.all([
-      supabase.from('families').select().eq('id', familyId).single(),
-      supabase.from('family_members').select().eq('family_id', familyId).order('name'),
-      supabase.from('children').select().eq('family_id', familyId).order('created_at'),
-      supabase.from('items').select().eq('family_id', familyId).eq('archived', false).order('points'),
-      supabase.from('child_balances').select().eq('family_id', familyId),
-      // shortcut: last 300 transactions only; paginate the history if a family outgrows it.
-      supabase.from('transactions').select('*, items(name, icon, kind), transaction_events(id, action, actor_name, actor_role, created_at)').eq('family_id', familyId)
-        .order('created_at', { ascending: false }).limit(300),
-    ])
-    const failed = [family, members, children, items, balances, txs].find((r) => r.error)?.error
-    if (failed) return setError(failed.message)
-    setError('')
-    setData({
+async function fetchFamily(familyId: string): Promise<{ data?: FamilyData; error?: string }> {
+  const [family, members, children, items, balances, txs] = await Promise.all([
+    supabase.from('families').select().eq('id', familyId).single(),
+    supabase.from('family_members').select().eq('family_id', familyId).order('name'),
+    supabase.from('children').select().eq('family_id', familyId).order('created_at'),
+    supabase.from('items').select().eq('family_id', familyId).eq('archived', false).order('points'),
+    supabase.from('child_balances').select().eq('family_id', familyId),
+    // shortcut: last 300 transactions only; paginate the history if a family outgrows it.
+    supabase.from('transactions').select('*, items(name, icon, kind), transaction_events(id, action, actor_name, actor_role, created_at)').eq('family_id', familyId)
+      .order('created_at', { ascending: false }).limit(300),
+  ])
+  const failed = [family, members, children, items, balances, txs].find((r) => r.error)?.error
+  if (failed) return { error: failed.message }
+  return {
+    data: {
       family: family.data!,
       members: members.data!,
       children: children.data!,
       items: items.data!,
       balances: Object.fromEntries(balances.data!.map((b) => [b.child_id, b.points ?? 0])),
       txs: txs.data as Tx[],
-    })
-  }, [familyId])
+    },
+  }
+}
+
+// Loads the whole family and reloads on any change from any device (Supabase Realtime).
+export function useFamily(familyId: string) {
+  const [data, setData] = useState<FamilyData>()
+  const [error, setError] = useState('')
+  const latest = useLatest()
+  // a change can trigger several reloads at once (this device's and the live event's): the newest wins
+  const reload = () => latest(fetchFamily(familyId), (r) => {
+    setError(r.error ?? '')
+    if (r.data) setData(r.data)
+  })
+  const changed = useEffectEvent(reload)
 
   useEffect(() => {
-    // oxlint-disable-next-line react/set-state-in-effect -- reload only sets state after awaiting the network
-    reload()
+    changed()
     // unique name: supabase-js reuses a channel by name, and StrictMode re-subscribes while the old one closes
     const channel = supabase.channel(`family:${familyId}:${crypto.randomUUID()}`)
     for (const table of ['transactions', 'children', 'items']) {
-      channel.on('postgres_changes', { event: '*', schema: 'public', table, filter: `family_id=eq.${familyId}` }, () => reload())
+      channel.on('postgres_changes', { event: '*', schema: 'public', table, filter: `family_id=eq.${familyId}` }, () => changed())
     }
     // changes made before the channel was (re)joined send no event: reload once listening
-    channel.subscribe((status) => status === 'SUBSCRIBED' && reload())
+    channel.subscribe((status) => status === 'SUBSCRIBED' && changed())
     return () => {
       supabase.removeChannel(channel)
     }
-  }, [familyId, reload])
+  }, [familyId])
 
   return { data, error, reload }
 }

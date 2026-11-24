@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useEffect, useEffectEvent, useState } from 'react'
 import { errorText, supabase } from './lib/supabase'
 import type { Database } from './lib/database.types'
 import { useConfirm } from './useConfirm'
+import { useLatest } from './useLatest'
 import { useLang, useT } from './i18n'
 import { LanguagePicker } from './LanguagePicker'
 
@@ -20,16 +21,14 @@ export function AdminPanel() {
   const [error, setError] = useState('')
   const [confirm, confirmDialog] = useConfirm()
 
-  const load = useCallback(async () => {
-    const { data, error } = await supabase.rpc('admin_families')
+  const latest = useLatest()
+  const load = () => latest(supabase.rpc('admin_families'), ({ data, error }) => {
     setError(error ? errorText(error) : '')
     setFamilies(data ?? [])
-  }, [])
+  })
+  const onOpen = useEffectEvent(load)
 
-  useEffect(() => {
-    // oxlint-disable-next-line react/set-state-in-effect -- load only sets state after awaiting the network
-    load()
-  }, [load])
+  useEffect(() => { onOpen() }, [])
 
   async function run(call: PromiseLike<{ error: { message: string } | null }>) {
     const { error } = await call

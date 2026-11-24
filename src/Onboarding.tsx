@@ -1,29 +1,28 @@
-import { useState, type FormEvent } from 'react'
+import { useActionState } from 'react'
 import { errorText, supabase } from './lib/supabase'
 import { useT } from './i18n'
 import { LanguagePicker } from './LanguagePicker'
 
 // rejected: name of the user's family request an admin turned down, if any
 type Props = { anonymous: boolean; isAdmin: boolean; rejected?: string; onJoined: () => void }
+// what was typed goes back in as defaultValue: React empties the form after the action
+type FormState = { error?: string; values: Record<string, string> }
+type Rpc = PromiseLike<{ data: string | null; error: { message: string } | null }>
 
 export function Onboarding({ anonymous, isAdmin, rejected, onJoined }: Props) {
-  const [error, setError] = useState('')
-  const [busy, setBusy] = useState(false)
   const t = useT()
-
-  async function submit(e: FormEvent<HTMLFormElement>, call: (f: FormData) => PromiseLike<{ data: string | null; error: { message: string } | null }>) {
-    e.preventDefault()
-    setBusy(true)
-    const { data, error } = await call(new FormData(e.currentTarget))
-    setBusy(false)
-    if (error) setError(errorText(error))
-    else if (data) onJoined()
+  const action = (call: (values: Record<string, string>) => Rpc) => async (_: FormState, form: FormData): Promise<FormState> => {
+    const values = Object.fromEntries([...form].map(([k, v]) => [k, String(v)]))
+    const { data, error } = await call(values)
+    if (error) return { error: errorText(error), values }
+    if (data) onJoined()
+    return { values: {} }
   }
-
-  const join = (e: FormEvent<HTMLFormElement>) =>
-    submit(e, (f) => supabase.rpc('join_family', { code: String(f.get('code')), member_name: String(f.get('name')) }))
-  const create = (e: FormEvent<HTMLFormElement>) =>
-    submit(e, (f) => supabase.rpc('create_family', { family_name: String(f.get('family')) }))
+  const [created, create, creating] = useActionState(
+    action((v) => supabase.rpc('create_family', { family_name: v.family })), { values: {} })
+  const [joined, join, joining] = useActionState(
+    action((v) => supabase.rpc('join_family', { code: v.code, member_name: v.name })), { values: {} })
+  const busy = creating || joining
 
   return (
     <main className="page narrow">
@@ -39,31 +38,32 @@ export function Onboarding({ anonymous, isAdmin, rejected, onJoined }: Props) {
         <section className="card">
           <h2>{t.onboarding.createTitle}</h2>
           <p>{t.onboarding.createHelp}</p>
-          <form onSubmit={create} className="stack">
+          <form action={create} className="stack">
             <label>
               {t.onboarding.familyName}
-              <input name="family" required maxLength={40} placeholder={t.onboarding.familyPlaceholder} />
+              <input name="family" required maxLength={40} placeholder={t.onboarding.familyPlaceholder} defaultValue={created.values.family} />
             </label>
             <button className="primary" disabled={busy}>{t.onboarding.create}</button>
           </form>
+          {created.error && <p className="error">{created.error}</p>}
         </section>
       )}
       <section className="card">
         <h2>{t.onboarding.joinTitle}</h2>
         <p>{anonymous ? t.onboarding.joinHelpKid : t.onboarding.joinHelpAdult}</p>
-        <form onSubmit={join} className="stack">
+        <form action={join} className="stack">
           <label>
             {t.onboarding.code}
-            <input name="code" required autoCapitalize="none" autoComplete="off" />
+            <input name="code" required autoCapitalize="none" autoComplete="off" defaultValue={joined.values.code} />
           </label>
           <label>
             {anonymous ? t.onboarding.deviceName : t.onboarding.yourName}
-            <input name="name" maxLength={60} placeholder={anonymous ? t.onboarding.devicePlaceholder : ''} />
+            <input name="name" maxLength={60} placeholder={anonymous ? t.onboarding.devicePlaceholder : ''} defaultValue={joined.values.name} />
           </label>
           <button className="primary" disabled={busy}>{t.onboarding.join}</button>
         </form>
+        {joined.error && <p className="error">{joined.error}</p>}
       </section>
-      {error && <p className="error">{error}</p>}
       {isAdmin && <a className="button" href="#/admin">🛡️ {t.common.admin}</a>}
       <button className="link" onClick={() => supabase.auth.signOut()}>{t.common.signOut}</button>
       <LanguagePicker />

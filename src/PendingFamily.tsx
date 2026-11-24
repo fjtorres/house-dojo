@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useEffectEvent } from 'react'
 import { supabase } from './lib/supabase'
 import { useT } from './i18n'
 import { LanguagePicker } from './LanguagePicker'
@@ -7,17 +7,18 @@ type Props = { familyId: string; name: string; onChange: () => void }
 
 export function PendingFamily({ familyId, name, onChange }: Props) {
   const t = useT()
+  const changed = useEffectEvent(onChange)
   // the admin's decision arrives over Realtime, so the screen moves on by itself
   useEffect(() => {
     const channel = supabase
       .channel(`family-status:${familyId}:${crypto.randomUUID()}`)
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'families', filter: `id=eq.${familyId}` }, () => onChange())
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'families', filter: `id=eq.${familyId}` }, () => changed())
       // a decision made before the channel was (re)joined sends no event: check again once listening
-      .subscribe((status) => status === 'SUBSCRIBED' && onChange())
+      .subscribe((status) => status === 'SUBSCRIBED' && changed())
     return () => {
       supabase.removeChannel(channel)
     }
-  }, [familyId, onChange])
+  }, [familyId])
 
   return (
     <main className="page narrow">
