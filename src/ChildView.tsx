@@ -1,4 +1,4 @@
-import { useEffect, useState, type CSSProperties } from 'react'
+import { startTransition, useEffect, useOptimistic, useState, type CSSProperties } from 'react'
 import { supabase } from './lib/supabase'
 import { useConfirm } from './useConfirm'
 import { itemValue, signed, txStatusLabel, type Child, type FamilyData, type Item, type Kind, type Tx } from './useFamily'
@@ -6,18 +6,37 @@ import { TransactionDetail } from './TransactionDetail'
 import { useLang, useT } from './i18n'
 
 // txId: movement whose detail is open (#/child/<id>/tx/<txId>)
-type Props = { child: Child; data: FamilyData; isParent: boolean; reload: () => void; txId?: string }
+type Props = { child: Child; data: FamilyData; isParent: boolean; reload: () => Promise<void>; txId?: string }
 
 const sections: { kind: Kind; parentsOnly?: boolean }[] = [{ kind: 'earn' }, { kind: 'reward' }, { kind: 'penalty', parentsOnly: true }]
 const defaultIcon: Record<Kind, string> = { earn: '⭐', reward: '🎁', penalty: '⚠️' }
 
+type View = { points: number; txs: Tx[] }
+type Change = { tx: Tx } | { id: string; status: 'approved' | 'rejected' }
+
+// A change shown before the server confirms it (useOptimistic). React re-applies it on top of fresh data
+// until the action ends, so a change the data already has is skipped: never counted twice.
+function applyChange({ points, txs }: View, change: Change): View {
+  if ('tx' in change) {
+    if (txs.some((t) => t.id === change.tx.id)) return { points, txs }
+    return { points: points + (change.tx.status === 'approved' ? change.tx.points : 0), txs: [change.tx, ...txs] }
+  }
+  const tx = txs.find((t) => t.id === change.id)
+  if (!tx || tx.status === change.status) return { points, txs }
+  const undo = tx.status === 'approved'
+  const delta = change.status === 'approved' ? tx.points : undo ? -tx.points : 0
+  const events = undo ? [...tx.transaction_events, { id: -1, action: 'undone', actor_name: null, actor_role: null, created_at: new Date().toISOString() }] : tx.transaction_events
+  return { points: points + delta, txs: txs.map((t) => (t.id === change.id ? { ...t, status: change.status, transaction_events: events } : t)) }
+}
+
 export function ChildView({ child, data, isParent, reload, txId }: Props) {
   const t = useT()
   const lang = useLang()
-  const points = data.balances[child.id] ?? 0
   const [toast, setToast] = useState<{ text: string; kind: Kind }>()
   const [confirm, confirmDialog] = useConfirm()
-  const history = data.txs.filter((t) => t.child_id === child.id)
+  const [view, showChange] = useOptimistic<View, Change>(
+    { points: data.balances[child.id] ?? 0, txs: data.txs.filter((t) => t.child_id === child.id) }, applyChange)
+  const { points, txs: history } = view
   const detail = txId ? history.find((t) => t.id === txId) : undefined
   // pending deductions already count as spent, so a reward can't be requested twice with the same points
   const available = points + history.filter((t) => t.status === 'pending' && t.points < 0).reduce((sum, t) => sum + t.points, 0)
@@ -28,21 +47,36 @@ export function ChildView({ child, data, isParent, reload, txId }: Props) {
     return () => clearTimeout(timer)
   }, [toast])
 
-  async function record(item: Item) {
-    const { error } = await supabase.from('transactions').insert({
+  const failed = () => setToast({ text: t.errors.saveFailed, kind: 'penalty' })
+
+  function record(item: Item) {
+    const kind = item.kind as Kind
+    const tx: Tx = {
+      id: crypto.randomUUID(), // our id: the optimistic row and the saved one are the same movement
       family_id: child.family_id,
       child_id: child.id,
       item_id: item.id,
-      points: 0, // the database sets the real value from the item
+      points: itemValue(item),
       status: isParent ? 'approved' : 'pending',
+      created_by: null,
+      created_at: new Date().toISOString(),
+      items: { name: item.name, icon: item.icon, kind: item.kind },
+      transaction_events: [],
+    }
+    startTransition(async () => {
+      showChange({ tx })
+      const { error } = await supabase.from('transactions').insert({
+        id: tx.id,
+        family_id: tx.family_id,
+        child_id: tx.child_id,
+        item_id: tx.item_id,
+        points: 0, // the database sets the real value from the item
+        status: tx.status,
+      })
+      if (error) return failed()
+      setToast({ text: isParent ? `${item.icon || defaultIcon[kind]} ${signed(tx.points)}` : t.child.sent, kind })
+      await reload() // the optimistic row stays until the saved one is loaded
     })
-    if (error) return setToast({ text: t.errors.saveFailed, kind: 'penalty' })
-    const kind = item.kind as Kind
-    setToast({
-      text: isParent ? `${item.icon || defaultIcon[kind]} ${signed(itemValue(item))}` : t.child.sent,
-      kind,
-    })
-    reload()
   }
 
   async function setStatus(tx: Tx, status: 'approved' | 'rejected') {
@@ -56,8 +90,12 @@ export function ChildView({ child, data, isParent, reload, txId }: Props) {
       })
       if (!ok) return
     }
-    await supabase.from('transactions').update({ status }).eq('id', tx.id)
-    reload()
+    startTransition(async () => {
+      showChange({ id: tx.id, status })
+      const { error } = await supabase.from('transactions').update({ status }).eq('id', tx.id)
+      if (error) return failed()
+      await reload()
+    })
   }
 
   return (

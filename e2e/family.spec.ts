@@ -89,6 +89,28 @@ async function tapRealtime(page: Page) {
   return tap
 }
 
+// Holds the page's next `method` request to the movements table until released: meanwhile the screen can
+// only show what the app expects to happen (optimistic). Each request reaches the server unchanged.
+async function holdMovement(page: Page, method: 'POST' | 'PATCH') {
+  let release!: () => void
+  const released = new Promise<void>((r) => { release = r })
+  let held = false
+  await page.route(/\/rest\/v1\/transactions(\?|$)/, async (route) => {
+    if (held || route.request().method() !== method) return route.fallback()
+    held = true
+    await released
+    await route.fallback()
+  })
+  return release
+}
+
+// An error the browser logs on purpose (a call the test makes fail): drop it so it doesn't count as a browser error.
+async function expectLogged(errors: string[], who: string, text: string) {
+  const match = (e: string) => e.startsWith(`${who}:`) && e.includes(text)
+  await expect.poll(() => errors.some(match), { message: `${who} logs "${text}"` }).toBe(true)
+  errors.splice(errors.findIndex(match), 1)
+}
+
 function collectErrors(page: Page, who: string, errors: string[]) {
   page.on('pageerror', (e) => errors.push(`${who}: ${e.message}`))
   page.on('console', (m) => { if (m.type() === 'error') errors.push(`${who}: ${m.text()}`) })
@@ -219,10 +241,7 @@ test('admin approves a family, parent sets it up, kid earns points and redeems a
     await kid.getByLabel('Nombre de este dispositivo').fill('Tablet del salón')
     await kid.getByRole('button', { name: 'Unirme' }).click()
     await expect(kid.getByText('Ese código no existe')).toBeVisible()
-    // the browser logs the rejected call (400): expected here, so it doesn't count as a browser error
-    const rejected = (e: string) => e.startsWith('kid:') && e.includes('status of 400')
-    await expect.poll(() => errors.some(rejected)).toBe(true)
-    errors.splice(errors.findIndex(rejected), 1)
+    await expectLogged(errors, 'kid', 'status of 400') // the rejected join
     await expect(kid.getByLabel('Código')).toHaveValue('nonexistent')
     await expect(kid.getByLabel('Nombre de este dispositivo')).toHaveValue('Tablet del salón')
     await kid.getByLabel('Código').fill(` ${code.toUpperCase()} `)
@@ -266,13 +285,35 @@ test('admin approves a family, parent sets it up, kid earns points and redeems a
     await kidRealtime.reconnect()
     await expect(kid.locator('.hero-points')).toHaveText('15 ⭐', { timeout: 10_000 })
     await expect(kid.getByRole('button', { name: /Ver la TV/ })).toBeEnabled()
+    const send = await holdMovement(kid, 'POST')
     await kid.getByRole('button', { name: /Ver la TV/ }).click()
+    // before the server answers: the request shows and reserves the points, so a second tap can't spend them again
+    await expect(kid.locator('.history li', { hasText: 'Ver la TV' })).toContainText('por aprobar')
     await expect(kid.getByRole('button', { name: /Ver la TV/ }), 'pending reward reserves the points').toBeDisabled()
+    send()
+    await expect(kid.locator('.toast')).toContainText('¡Enviado!')
+    await expect(kid.locator('.history li', { hasText: 'Ver la TV' }), 'saved once').toHaveCount(1)
   })
 
   await test.step('parent approves the reward; balance back to 0', async () => {
+    await expect(parent.locator('.history li', { hasText: 'Ver la TV' })).toContainText('Ver la TV', { timeout: 10_000 })
+    const save = await holdMovement(parent, 'PATCH')
     await parent.getByRole('button', { name: 'Aprobar' }).click()
+    await expect(parent.locator('.hero-points'), 'balance moves before the server answers').toHaveText('0 ⭐')
+    save()
+    await expect(parent.getByRole('button', { name: 'Aprobar' })).toHaveCount(0)
     await expect(parent.locator('.hero-points')).toHaveText('0 ⭐')
+  })
+
+  await test.step('a movement that fails to save goes away and says so', async () => {
+    await parent.route(/\/rest\/v1\/transactions(\?|$)/, (route) =>
+      route.request().method() === 'POST' ? route.fulfill({ status: 500, json: { message: 'boom' } }) : route.fallback())
+    await parent.getByRole('button', { name: /Recoger la habitación/ }).click()
+    await expect(parent.locator('.toast')).toHaveText('No se pudo guardar 😕')
+    await expect(parent.locator('.hero-points')).toHaveText('0 ⭐')
+    await expect(parent.locator('.history li', { hasText: 'Recoger la habitación' }), 'only the earlier one').toHaveCount(1)
+    await parent.unroute(/\/rest\/v1\/transactions(\?|$)/)
+    await expectLogged(errors, 'parent', 'status of 500')
   })
 
   await test.step('parent undoes an approved movement through the in-app dialog', async () => {
