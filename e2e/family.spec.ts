@@ -214,8 +214,18 @@ test('admin approves a family, parent sets it up, kid earns points and redeems a
   await test.step('kid tablet joins anonymously with the code', async () => {
     await kid.goto(APP)
     await kid.getByRole('button', { name: /Usar este dispositivo/ }).click()
-    await kid.getByLabel('Código').fill(` ${code.toUpperCase()} `)
+    // a wrong code: the error shows and what was typed stays (React empties a form after its action)
+    await kid.getByLabel('Código').fill('nonexistent')
     await kid.getByLabel('Nombre de este dispositivo').fill('Tablet del salón')
+    await kid.getByRole('button', { name: 'Unirme' }).click()
+    await expect(kid.getByText('Ese código no existe')).toBeVisible()
+    // the browser logs the rejected call (400): expected here, so it doesn't count as a browser error
+    const rejected = (e: string) => e.startsWith('kid:') && e.includes('status of 400')
+    await expect.poll(() => errors.some(rejected)).toBe(true)
+    errors.splice(errors.findIndex(rejected), 1)
+    await expect(kid.getByLabel('Código')).toHaveValue('nonexistent')
+    await expect(kid.getByLabel('Nombre de este dispositivo')).toHaveValue('Tablet del salón')
+    await kid.getByLabel('Código').fill(` ${code.toUpperCase()} `)
     await kid.getByRole('button', { name: 'Unirme' }).click()
     await kid.locator('.kid-card').click()
     tablets.push(await userId(kid))
@@ -225,6 +235,14 @@ test('admin approves a family, parent sets it up, kid earns points and redeems a
   })
 
   await test.step('kid proposes a task; parent sees it live and approves', async () => {
+    // the tablet's first load after proposing answers late, after the approval's: the older answer must not win
+    let release!: () => void
+    const late = new Promise<void>((r) => { release = r })
+    let answered!: Promise<void>
+    await kid.route(/\/rest\/v1\/transactions\?select=/, (route) => {
+      answered = route.fetch().then(async (response) => { await late; await route.fulfill({ response }) })
+      return answered
+    }, { times: 1 })
     await kid.getByRole('button', { name: /Hacer los deberes/ }).click()
     await expect(kid.locator('.toast')).toBeVisible()
     await parent.getByRole('link', { name: '← Volver' }).click()
@@ -233,6 +251,10 @@ test('admin approves a family, parent sets it up, kid earns points and redeems a
     await parent.getByRole('button', { name: 'Aprobar' }).click()
     await expect(parent.locator('.hero-points')).toHaveText('10 ⭐')
     await expect(kid.locator('.hero-points'), 'kid sees the approval live').toHaveText('10 ⭐', { timeout: 10_000 })
+    release()
+    await answered
+    await kid.waitForTimeout(500) // time for the app to handle the late answer
+    await expect(kid.locator('.hero-points'), 'a late, older answer does not undo the approval').toHaveText('10 ⭐')
     // the next change's live event gets lost on the tablet (a wifi blip)
     kidRealtime.deaf = true
     await parent.getByRole('button', { name: /Recoger la habitación/ }).click()

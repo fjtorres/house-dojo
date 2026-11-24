@@ -1,4 +1,5 @@
-import { useState, type FormEvent, type ReactNode } from 'react'
+import { useState, type ReactNode } from 'react'
+import { useFormStatus } from 'react-dom'
 import { errorText, supabase } from './lib/supabase'
 import { itemValue, signed, type Child, type FamilyData, type Item, type Kind } from './useFamily'
 import { EmojiPicker } from './EmojiPicker'
@@ -155,22 +156,26 @@ function NotFound({ back }: { back: string }) {
 
 type ChildFields = { name: string; avatar: string; color: string }
 
-function ChildForm({ child, onSave }: { child?: Child; onSave: (child: ChildFields) => void }) {
+// Both forms use a form action (React 19): React passes the FormData and, while onSave runs, SaveButton is disabled.
+// If saving fails, what was typed goes back in as defaultValue: React empties the form after the action.
+function ChildForm({ child, onSave }: { child?: Child; onSave: (child: ChildFields) => Promise<void> }) {
   const t = useT()
-  function submit(e: FormEvent<HTMLFormElement>) {
-    e.preventDefault()
-    const f = new FormData(e.currentTarget)
-    onSave({ name: String(f.get('name')), avatar: String(f.get('avatar')), color: String(f.get('color')) })
+  const [typed, setTyped] = useState<ChildFields>()
+  const values = typed ?? child
+  async function save(f: FormData) {
+    const fields = { name: String(f.get('name')), avatar: String(f.get('avatar')), color: String(f.get('color')) }
+    setTyped(fields)
+    await onSave(fields)
   }
 
   return (
-    <form onSubmit={submit} className="card">
+    <form action={save} className="card">
       <h2>{child ? t.parents.editChild(child.name) : t.parents.addChild}</h2>
       <div className="inline">
         <EmojiPicker name="avatar" options={AVATARS} defaultValue={child?.avatar} label={t.parents.avatar} />
-        <input name="name" placeholder={t.parents.name} required maxLength={40} defaultValue={child?.name} aria-label={t.parents.name} />
-        <input name="color" type="color" defaultValue={child?.color || '#7c5cff'} aria-label={t.parents.color} />
-        <button className="primary">{child ? t.common.save : t.common.add}</button>
+        <input name="name" placeholder={t.parents.name} required maxLength={40} defaultValue={values?.name} aria-label={t.parents.name} />
+        <input name="color" type="color" defaultValue={values?.color || '#7c5cff'} aria-label={t.parents.color} />
+        <SaveButton>{child ? t.common.save : t.common.add}</SaveButton>
         <a className="link" href={CHILDREN}>{t.common.cancel}</a>
       </div>
     </form>
@@ -179,27 +184,34 @@ function ChildForm({ child, onSave }: { child?: Child; onSave: (child: ChildFiel
 
 type ItemFields = { kind: string; name: string; icon: string; points: number }
 
-function ItemForm({ item, onSave }: { item?: Item; onSave: (item: ItemFields) => void }) {
+function ItemForm({ item, onSave }: { item?: Item; onSave: (item: ItemFields) => Promise<void> }) {
   const t = useT()
-  function submit(e: FormEvent<HTMLFormElement>) {
-    e.preventDefault()
-    const f = new FormData(e.currentTarget)
-    onSave({ kind: String(f.get('kind')), name: String(f.get('name')), icon: String(f.get('icon')), points: Number(f.get('points')) })
+  const [typed, setTyped] = useState<ItemFields>()
+  const values = typed ?? item
+  async function save(f: FormData) {
+    const fields = { kind: String(f.get('kind')), name: String(f.get('name')), icon: String(f.get('icon')), points: Number(f.get('points')) }
+    setTyped(fields)
+    await onSave(fields)
   }
 
   return (
-    <form onSubmit={submit} className="card">
+    <form action={save} className="card">
       <h2>{item ? t.parents.editItem(item.name) : t.parents.addItem}</h2>
       <div className="inline">
-        <select name="kind" aria-label={t.parents.kind} defaultValue={item?.kind}>
+        <select name="kind" aria-label={t.parents.kind} defaultValue={values?.kind}>
           {(['earn', 'penalty', 'reward'] as const).map((k) => <option key={k} value={k}>{t.parents.kinds[k]}</option>)}
         </select>
         <EmojiPicker name="icon" options={ICONS} defaultValue={item?.icon} label={t.parents.icon} />
-        <input name="name" placeholder={t.parents.itemPlaceholder} required maxLength={60} defaultValue={item?.name} aria-label={t.parents.name} />
-        <input name="points" type="number" min={1} defaultValue={item?.points ?? 10} required className="num" aria-label={t.parents.points} />
-        <button className="primary">{item ? t.common.save : t.common.add}</button>
+        <input name="name" placeholder={t.parents.itemPlaceholder} required maxLength={60} defaultValue={values?.name} aria-label={t.parents.name} />
+        <input name="points" type="number" min={1} defaultValue={values?.points ?? 10} required className="num" aria-label={t.parents.points} />
+        <SaveButton>{item ? t.common.save : t.common.add}</SaveButton>
         <a className="link" href={ITEMS}>{t.common.cancel}</a>
       </div>
     </form>
   )
+}
+
+function SaveButton({ children }: { children: ReactNode }) {
+  const { pending } = useFormStatus()
+  return <button className="primary" disabled={pending}>{children}</button>
 }
